@@ -1,49 +1,84 @@
-const CONCERTS=[
- {
-    id:1,
-    name:"Neon Pulse",
-    date:"24 AUG",
-    fullDate:"24 August 2026 / 8:00 PM",
-    eventTimestamp:1787587200,
-    venue:"Zepp Kuala Lumpur",
-    price:.08,
-    left:184,
-    img:"hero"
-},
- {
-    id:2,
-    name:"Afterlight Sessions",
-    date:"05 SEP",
-    fullDate:"5 September 2026 / 9:00 PM",
-    eventTimestamp:1788613200,
-    venue:"RexKL, Kuala Lumpur",
-    price:.045,
-    left:92,
-    img:"p1"
-},
- {
-    id:3,
-    name:"Static Hearts",
-    date:"19 SEP",
-    fullDate:"19 September 2026 / 8:30 PM",
-    eventTimestamp:1789821000,
-    venue:"The Bee, Publika",
-    price:.06,
-    left:41,
-    img:"p2"
-},
- {
-    id:4,
-    name:"Sol in Motion",
-    date:"03 OCT",
-    fullDate:"3 October 2026 / 7:30 PM",
-    eventTimestamp:1791027000,
-    venue:"JioSpace, Petaling Jaya",
-    price:.055,
-    left:16,
-    img:"p3"
+let CONCERTS = [];
+
+function dateParts(timestamp) {
+    const date = new Date(timestamp * 1000);
+    const day = new Intl.DateTimeFormat("en-MY", { day: "2-digit" }).format(date);
+    const month = new Intl.DateTimeFormat("en-MY", { month: "short" }).format(date).toUpperCase();
+    const fullDate = new Intl.DateTimeFormat("en-MY", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit"
+    }).format(date);
+
+    return { short: `${day} ${month}`, full: fullDate };
 }
-];
+
+async function loadConcerts() {
+    if (!TrustTicketContract.configured()) {
+        throw new Error("The TrustTicket contract address is not configured.");
+    }
+
+    const total = await TrustTicketContract.getTotalConcerts();
+    const records = await Promise.all(
+        Array.from({ length: total }, (_, index) =>
+            TrustTicketContract.getConcert(index + 1)
+        )
+    );
+
+    CONCERTS = records
+        .filter(concert => concert.active)
+        .map((concert, index) => {
+            const date = dateParts(concert.date);
+            return {
+                ...concert,
+                fullDate: date.full,
+                eventTimestamp: concert.date,
+                date: date.short,
+                left: Math.max(0, concert.totalTickets - concert.ticketsSold),
+                img: index === 0 ? "hero" : `p${((index - 1) % 3) + 1}`
+            };
+        });
+}
+
+function renderFeaturedConcert() {
+    const hero = document.querySelector(".hero");
+    const count = document.querySelector(".section-head > .muted");
+    if (count) count.textContent = `${CONCERTS.length} event${CONCERTS.length === 1 ? "" : "s"}`;
+    if (!hero) return;
+
+    const c = CONCERTS[0];
+    if (!c) {
+        hero.innerHTML = `
+            <img src="images/hero.png" alt="Concert stage under violet lights">
+            <div class="shell hero-content">
+                <p class="eyebrow">BOTChain verified events</p>
+                <h1>No live <span>concerts</span><br>yet</h1>
+                <div class="hero-actions">
+                    <a class="btn" href="register.html">Create an event</a>
+                </div>
+            </div>`;
+        return;
+    }
+
+    hero.innerHTML = `
+        <img src="images/hero.png" alt="${c.name} concert">
+        <div class="shell hero-content">
+            <p class="eyebrow">Featured / On-chain event</p>
+            <h1>${c.name}</h1>
+            <div class="event-meta">
+                <span><i data-lucide="calendar" size="17"></i> ${c.fullDate}</span>
+                <span><i data-lucide="map-pin" size="17"></i> ${c.venue}</span>
+                <span><i data-lucide="ticket" size="17"></i> ${c.price} BOT</span>
+            </div>
+            <div class="hero-actions">
+                <a class="btn" href="#concert/${c.id}">Get tickets <i data-lucide="arrow-up-right" size="18"></i></a>
+                <a class="btn secondary" href="#events">View lineup</a>
+            </div>
+        </div>
+        <div class="shell hero-index"><strong>01</strong> / ${String(CONCERTS.length).padStart(2, "0")}</div>`;
+}
 
 window.showToast=(msg,error=false)=>{
     const t=document.querySelector(".toast");
@@ -57,6 +92,16 @@ window.showToast=(msg,error=false)=>{
 function renderHome() {
     const list = document.querySelector("#concert-list");
     if (!list) return;
+
+    if (!CONCERTS.length) {
+        list.innerHTML = `
+            <div class="empty">
+                <i data-lucide="calendar-x" size="40"></i>
+                <h2>No active concerts</h2>
+                <p class="muted">New on-chain concerts will appear here after an organizer creates them.</p>
+            </div>`;
+        return;
+    }
 
     list.innerHTML = CONCERTS.map(c => `
         <article class="concert-row">
@@ -95,7 +140,19 @@ function renderDetail() {
     const root = document.querySelector("#event-detail");
     if (!root) return;
 
-    const c = CONCERTS.find(x => x.id === concertIdFromHash()) || CONCERTS[0];
+    const c = CONCERTS.find(x => x.id === concertIdFromHash());
+
+    if (!c) {
+        root.innerHTML = `
+            <div class="empty">
+                <i data-lucide="calendar-x" size="40"></i>
+                <h2>Event unavailable</h2>
+                <p class="muted">This event does not exist or is not active on the contract.</p>
+                <a class="btn" href="#discover">Browse events</a>
+            </div>`;
+        lucide.createIcons();
+        return;
+    }
 
     const visual = c.img === "hero"
         ? `<img src="images/hero.png" alt="${c.name} performing live">`
@@ -570,10 +627,29 @@ function route(event) {
 
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
 
-    // Render homepage
-    renderHome();
+    const list = document.querySelector("#concert-list");
+    if (list) {
+        list.innerHTML = `<div class="empty"><p class="muted">Loading concerts from BOTChain...</p></div>`;
+    }
+
+    try {
+        await loadConcerts();
+        renderFeaturedConcert();
+        renderHome();
+    } catch (error) {
+        console.error("Unable to load BOTChain concerts:", error);
+        if (list) {
+            list.innerHTML = `
+                <div class="empty">
+                    <i data-lucide="triangle-alert" size="40"></i>
+                    <h2>Unable to load concerts</h2>
+                    <p class="muted">${error.shortMessage || error.message}</p>
+                </div>`;
+        }
+        showToast("Unable to load concerts from BOTChain.", true);
+    }
 
     // Mobile navigation
     const mobileToggle = document.querySelector(".mobile-toggle");

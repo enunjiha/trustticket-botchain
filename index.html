@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -7,7 +7,7 @@
   <title>TRUSTTICKET - Live music, verified</title>
   <link rel="stylesheet" href="css/style.css">
   <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.min.js" defer></script>
+  <script src="js/vendor/ethers.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
 </head>
 <body>
@@ -30,24 +30,17 @@
       <section class="hero">
         <img src="images/hero.png" alt="Alternative electronic band performing under violet lights">
         <div class="shell hero-content">
-          <p class="eyebrow">Featured / One night only</p>
-          <h1>Neon <span>Pulse</span><br>Live in KL</h1>
+          <p class="eyebrow">BOTChain verified events</p>
+          <h1>Loading <span>concerts</span></h1>
           <div class="event-meta">
-            <span><i data-lucide="calendar" size="17"></i> 24 August 2026</span>
-            <span><i data-lucide="map-pin" size="17"></i> Zepp Kuala Lumpur</span>
-            <span><i data-lucide="ticket" size="17"></i> 0.08 BOT</span>
-          </div>
-          <div class="hero-actions">
-            <a class="btn" href="#concert/1">Get tickets <i data-lucide="arrow-up-right" size="18"></i></a>
-            <a class="btn secondary" href="#events">View lineup</a>
+            <span>Reading the deployed TrustTicket contract...</span>
           </div>
         </div>
-        <div class="shell hero-index"><strong>01</strong> / 04</div>
       </section>
       <section class="section shell" id="events">
         <div class="section-head">
           <div><p class="eyebrow">On sale now</p><h2>Upcoming concerts</h2></div>
-          <span class="muted">4 events</span>
+          <span class="muted">Loading...</span>
         </div>
         <div class="concert-list" id="concert-list" aria-live="polite"></div>
       </section>
@@ -89,3 +82,4 @@
   <script src="js/customer.js" defer></script>
 </body>
 </html>
+

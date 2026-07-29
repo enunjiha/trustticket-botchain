@@ -1,16 +1,26 @@
 window.TrustTicketContract = {
     address: "0x405F33dFF4708F57905e59ce4Fa8ffd47daD5566",
+    rpcUrl: "https://rpc.bohr.life",
+    chainId: 968,
 
     configured() {
         return !!this.address;
     },
 
     async provider() {
-        return new ethers.BrowserProvider(window.ethereum);
+        return new ethers.JsonRpcProvider(
+            this.rpcUrl,
+            this.chainId,
+            { staticNetwork: true }
+        );
     },
 
     async signer() {
-        const provider = await this.provider();
+        if (!window.ethereum) {
+            throw new Error("MetaMask is required to buy a ticket.");
+        }
+
+        const provider = new ethers.BrowserProvider(window.ethereum);
         return await provider.getSigner();
     },
 
@@ -59,6 +69,7 @@ window.TrustTicketContract = {
             venue: c.venue,
             date: Number(c.date),
             price: ethers.formatEther(c.price),
+            priceWei: c.price.toString(),
             totalTickets: Number(c.totalTickets),
             ticketsSold: Number(c.ticketsSold),
             active: c.active
@@ -72,7 +83,7 @@ window.TrustTicketContract = {
         const contract = await this.writeContract();
 
         const tx = await contract.buyTicket(id, {
-            value: ethers.parseEther(concert.price)
+            value: concert.priceWei
         });
 
         await tx.wait();

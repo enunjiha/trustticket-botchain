@@ -1,8 +1,9 @@
 window.TrustWallet={account:null,signer:null,provider:null,
  short(a){return a?`${a.slice(0,6)}...${a.slice(-4)}`:"Connect wallet"},
  async connect(){
+  sessionStorage.removeItem("trustticket_wallet_disconnected");
   if(!window.ethereum){window.showToast?.("MetaMask is not installed.",true);return null}
-  try{const accounts=await window.ethereum.request({method:"eth_requestAccounts"});sessionStorage.removeItem("trustticket_wallet_disconnected");this.provider=window.ethereum;this.signer=null;this.account=accounts[0]||null;this.update();await this.checkNetwork();this.routeByRole();return this.account}catch(e){window.showToast?.(e.shortMessage||e.message,true);return null}
+  try{const accounts=await window.ethereum.request({method:"eth_requestAccounts"});this.provider=window.ethereum;this.signer=null;this.account=accounts[0]||null;this.update();await this.checkNetwork();this.routeByRole();return this.account}catch(e){window.showToast?.(e.shortMessage||e.message,true);return null}
  },
  async checkNetwork(){if(!TrustTicketContract.chainId||TrustTicketContract.chainId==="0x0")return;const chain=await ethereum.request({method:"eth_chainId"});if(chain!==TrustTicketContract.chainId)window.showToast?.(`Switch MetaMask to ${TrustTicketContract.chainName}.`,true)},
  update(){document.querySelectorAll("[data-connect]").forEach(b=>{const s=b.querySelector(".wallet-label");if(s)s.textContent=this.account?`Disconnect ${this.short(this.account)}`:"Connect wallet";b.classList.toggle("connected",!!this.account)})},

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Apply for a TrustTicket organizer account.">
+  <title>Become an organizer · TRUSTTICKET</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar"><nav class="shell nav"><a class="brand" href="index.html">TRUST<span>TICKET</span></a><a class="back" href="index.html">← Back to customer site</a></nav></header>
+  <main class="registration shell">
+    <p class="eyebrow">Organizer access</p>
+    <h1 class="page-title">Create better<br>live events.</h1>
+    <p class="muted intro">Apply to create concerts, manage ticket sales, and verify entry. Your wallet identifies your organizer account.</p>
+    <section class="registration-card">
+      <div><p class="eyebrow">Step 1</p><h2>Connect your wallet</h2><p class="muted" id="wallet-status">Connect the wallet you want to use as an organizer.</p><button class="btn" id="connect-organizer" type="button">Connect wallet</button></div>
+      <form id="organizer-form" hidden>
+        <p class="eyebrow">Step 2</p><h2>Submit your request</h2>
+        <label>Organization or event name<input name="organization" required maxlength="80" placeholder="e.g. Neon Live Malaysia"></label>
+        <label>Contact email<input name="email" type="email" required placeholder="you@example.com"></label>
+        <label>Connected wallet<input id="organizer-wallet" name="wallet" readonly></label>
+        <button class="btn" type="submit">Submit registration</button>
+      </form>
+      <p class="notice demo" id="registration-result" hidden></p>
+    </section>
+  </main>
+  <script src="js/roles.js"></script>
+  <script src="js/register.js"></script>
+</body>
+</html>

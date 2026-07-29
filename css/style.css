@@ -70,3 +70,7 @@ html,body{max-width:100%;overflow-x:hidden}
 .ticket-closed svg{flex:0 0 auto}
 .empty.compact{padding:28px}
 .empty.compact p{margin:0}
+
+/* Organizer registration */
+.registration{padding:72px 0 100px;max-width:780px}.registration .page-title{margin:10px 0 20px}.intro{max-width:620px;font-size:17px}.registration-card{margin-top:42px;border:1px solid var(--line);background:var(--panel);padding:32px;display:grid;gap:36px}.registration-card h2{font:700 33px/1 Barlow Condensed;margin:0 0 10px;text-transform:uppercase}.registration-card label{display:grid;gap:7px;margin:16px 0;color:var(--muted);font-weight:700}.registration-card input{width:100%;padding:12px;border:1px solid var(--line);border-radius:4px;background:#090b0a;color:var(--ink)}.registration-card .notice{margin:0}
+@media(max-width:760px){.registration{padding:42px 0 72px}.registration-card{padding:22px}}

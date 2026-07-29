@@ -11,6 +11,7 @@ document.getElementById('walletButton').addEventListener('click', async (event) 
     event.currentTarget.dataset.connected = '';
     event.currentTarget.innerHTML = '<i></i> Connect wallet';
     showToast('Wallet disconnected from TrustTicket.');
+    window.setTimeout(() => window.location.assign('index.html'), 500);
     return;
   }
   if (!window.ethereum) return showToast('MetaMask not found — install it to connect.');

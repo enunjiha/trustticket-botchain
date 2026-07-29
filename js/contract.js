@@ -1,37 +1,100 @@
-/* Contract adapter. The customer UI only calls these methods and never reads Solidity tuples directly. */
-window.TrustTicketContract={
- address:"",
- chainId:"0x0", // BOTChain chain ID in hexadecimal
- chainName:"BOTChain",
- abi:[
-  "function getConcert(uint256 id) view returns (string name,string venue,uint256 date,uint256 price,uint256 supply,uint256 sold,bool active)",
-  "function buyTicket(uint256 concertId) payable returns (uint256)",
-  "function getOwnedTickets(address owner) view returns (uint256[])",
-  "function getTicket(uint256 ticketId) view returns (uint256 concertId,address owner,bool used)"
- ],
- configured(){return /^0x[a-fA-F0-9]{40}$/.test(this.address)},
- readContract(){
-  if(!this.configured())throw new Error("DEMO_MODE");
-  const provider=window.TrustWallet?.provider||new ethers.BrowserProvider(window.ethereum);
-  return new ethers.Contract(this.address,this.abi,provider);
- },
- async getConcert(id){
-  const value=await this.readContract().getConcert(id);
-  return {id:Number(id),name:value.name,venue:value.venue,date:Number(value.date),price:value.price,supply:Number(value.supply),sold:Number(value.sold),active:value.active};
- },
- async buyTicket(concertId,price){
-  if(!this.configured())throw new Error("DEMO_MODE");
-  if(!window.TrustWallet?.signer)throw new Error("Connect your wallet first.");
-  const contract=new ethers.Contract(this.address,this.abi,window.TrustWallet.signer);
-  const tx=await contract.buyTicket(concertId,{value:ethers.parseEther(String(price))});
-  return tx.wait();
- },
- async getOwnedTickets(owner){
-  const ids=await this.readContract().getOwnedTickets(owner);
-  return ids.map(Number);
- },
- async getTicket(id){
-  const value=await this.readContract().getTicket(id);
-  return {id:Number(id),concertId:Number(value.concertId),owner:value.owner,used:value.used};
- }
+window.TrustTicketContract = {
+    address: "0x405F33dFF4708F57905e59ce4Fa8ffd47daD5566",
+
+    configured() {
+        return !!this.address;
+    },
+
+    async provider() {
+        return new ethers.BrowserProvider(window.ethereum);
+    },
+
+    async signer() {
+        const provider = await this.provider();
+        return await provider.getSigner();
+    },
+
+    abi: [
+        "function getTotalConcerts() view returns (uint256)",
+        "function getConcert(uint256) view returns ((uint256 id,address organizer,string name,string venue,uint256 date,uint256 price,uint256 totalTickets,uint256 ticketsSold,bool active))",
+        "function buyTicket(uint256) payable",
+        "function verifyTicket(uint256) view returns (bool)",
+        "function checkIn(uint256)",
+        "function updateConcertStatus(uint256,bool)"
+    ],
+
+    async readContract() {
+        const provider = await this.provider();
+        return new ethers.Contract(
+            this.address,
+            this.abi,
+            provider
+        );
+    },
+
+    async writeContract() {
+        const signer = await this.signer();
+
+        return new ethers.Contract(
+            this.address,
+            this.abi,
+            signer
+        );
+    },
+
+    async getTotalConcerts() {
+        const contract = await this.readContract();
+        return Number(await contract.getTotalConcerts());
+    },
+
+    async getConcert(id) {
+        const contract = await this.readContract();
+
+        const c = await contract.getConcert(id);
+
+        return {
+            id: Number(c.id),
+            organizer: c.organizer,
+            name: c.name,
+            venue: c.venue,
+            date: Number(c.date),
+            price: ethers.formatEther(c.price),
+            totalTickets: Number(c.totalTickets),
+            ticketsSold: Number(c.ticketsSold),
+            active: c.active
+        };
+    },
+
+    async buyTicket(id) {
+
+        const concert = await this.getConcert(id);
+
+        const contract = await this.writeContract();
+
+        const tx = await contract.buyTicket(id, {
+            value: ethers.parseEther(concert.price)
+        });
+
+        await tx.wait();
+
+        return tx;
+    },
+
+    async verifyTicket(ticketId) {
+
+        const contract = await this.readContract();
+
+        return await contract.verifyTicket(ticketId);
+    },
+
+    async checkIn(ticketId) {
+
+        const contract = await this.writeContract();
+
+        const tx = await contract.checkIn(ticketId);
+
+        await tx.wait();
+
+        return tx;
+    }
 };

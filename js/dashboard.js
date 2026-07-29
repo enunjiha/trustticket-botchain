@@ -9,6 +9,11 @@ document.getElementById('walletButton').addEventListener('click', async (event) 
   if (!window.ethereum) return showToast('MetaMask not found — install it to connect.');
   try {
     const [account] = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    if (!window.TrustTicketRoles?.isOrganizer(account)) {
+      showToast('This wallet is a customer account. Opening the customer portal.');
+      window.setTimeout(() => window.location.assign('index.html'), 900);
+      return;
+    }
     event.currentTarget.innerHTML = `<i></i> ${account.slice(0, 6)}...${account.slice(-4)}`;
     showToast('Wallet connected');
   } catch {

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Discover and own verifiable concert tickets on BOTChain.">
+  <title>TRUSTTICKET - Live music, verified</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#app-view">Skip to content</a>
+  <header class="topbar">
+    <nav class="shell nav" aria-label="Main navigation">
+      <a class="brand" href="#discover" aria-label="TrustTicket home">TRUST<span>TICKET</span></a>
+      <div class="nav-links" id="nav-links">
+        <a href="#discover" data-nav="discover">Discover</a>
+        <a href="#tickets" data-nav="tickets">My Tickets</a>
+      </div>
+      <button class="wallet-btn" data-connect aria-label="Connect wallet"><i data-lucide="wallet" size="18"></i><span class="wallet-label">Connect wallet</span></button>
+      <button class="mobile-toggle" aria-label="Toggle menu" aria-controls="nav-links" aria-expanded="false"><i data-lucide="menu"></i></button>
+    </nav>
+  </header>
+
+  <main id="app-view" tabindex="-1">
+    <div data-view="discover">
+      <section class="hero">
+        <img src="images/hero.png" alt="Alternative electronic band performing under violet lights">
+        <div class="shell hero-content">
+          <p class="eyebrow">Featured / One night only</p>
+          <h1>Neon <span>Pulse</span><br>Live in KL</h1>
+          <div class="event-meta">
+            <span><i data-lucide="calendar" size="17"></i> 24 August 2026</span>
+            <span><i data-lucide="map-pin" size="17"></i> Zepp Kuala Lumpur</span>
+            <span><i data-lucide="ticket" size="17"></i> 0.08 BOT</span>
+          </div>
+          <div class="hero-actions">
+            <a class="btn" href="#concert/1">Get tickets <i data-lucide="arrow-up-right" size="18"></i></a>
+            <a class="btn secondary" href="#events">View lineup</a>
+          </div>
+        </div>
+        <div class="shell hero-index"><strong>01</strong> / 04</div>
+      </section>
+      <section class="section shell" id="events">
+        <div class="section-head">
+          <div><p class="eyebrow">On sale now</p><h2>Upcoming concerts</h2></div>
+          <span class="muted">4 events</span>
+        </div>
+        <div class="concert-list" id="concert-list" aria-live="polite"></div>
+      </section>
+      <section class="trust-band">
+        <div class="shell trust-grid">
+          <div><i data-lucide="badge-check"></i><span><strong>Owned by you</strong><small>Tickets live in your connected wallet</small></span></div>
+          <div><i data-lucide="scan-line"></i><span><strong>Verified at entry</strong><small>One QR. One check-in. No duplicates.</small></span></div>
+          <div><i data-lucide="blocks"></i><span><strong>BOTChain record</strong><small>Ownership is transparent and verifiable</small></span></div>
+        </div>
+      </section>
+    </div>
+
+    <section class="shell detail" data-view="concert" hidden>
+      <a class="back" href="#discover"><i data-lucide="arrow-left" size="17"></i> Back to events</a>
+      <div class="detail-grid" id="event-detail" aria-live="polite"></div>
+    </section>
+
+    <section class="shell" data-view="tickets" hidden>
+      <header class="tickets-head"><p class="eyebrow">Your collection</p><h1 class="page-title">My tickets</h1><p class="muted">Your active passes and on-chain ticket history.</p></header>
+      <div class="ticket-groups" id="ticket-list" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <footer><div class="shell"><a class="brand" href="#discover">TRUST<span>TICKET</span></a><span>Built on BOTChain / Hackathon 2026</span></div></footer>
+  <dialog class="modal" id="qr-modal" aria-labelledby="qr-title">
+    <div class="modal-box">
+      <button class="modal-close" aria-label="Close QR code"><i data-lucide="x"></i></button>
+      <p class="eyebrow">Entry pass</p>
+      <h2 id="qr-title">Ticket QR</h2>
+      <div id="qr-code"></div>
+      <p class="muted" id="qr-meta"></p>
+    </div>
+  </dialog>
+  <div class="toast" role="status" aria-live="polite"></div>
+  <script src="js/contract.js"></script>
+  <script src="js/wallet.js"></script>
+  <script src="js/qr.js"></script>
+  <script src="js/customer.js"></script>
+</body>
+</html>

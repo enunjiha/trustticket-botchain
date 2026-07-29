@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TrustTicket — Organizer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="css/organizer.css" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <a class="brand" href="#top"><span class="brand-mark">T</span> TRUST<span>TICKET</span></a>
+      <nav>
+        <a class="active" href="#dashboard"><span>01</span> Overview</a>
+        <a href="#concerts"><span>02</span> Concerts</a>
+        <a href="#create"><span>03</span> Create event</a>
+        <a href="#verify"><span>04</span> Verify tickets</a>
+      </nav>
+      <div class="sidebar-bottom">
+        <p>ORGANIZER PORTAL</p>
+        <small>BOT Chain · Testnet</small>
+      </div>
+    </aside>
+
+    <main id="top">
+      <header>
+        <button class="menu-btn" aria-label="Open menu">☰</button>
+        <p class="eyebrow">ORGANIZER / <span>LIVE DASHBOARD</span></p>
+        <button class="wallet" id="walletButton"><i></i> Connect wallet</button>
+      </header>
+
+      <section class="hero" id="dashboard">
+        <div>
+          <p class="eyebrow">YOUR NEXT SOLD-OUT NIGHT</p>
+          <h1>MAKE EVERY<br />TICKET <em>TRUSTED.</em></h1>
+          <p class="hero-copy">Create events, mint secure tickets and welcome every fan with one powerful organizer dashboard.</p>
+          <div class="hero-actions">
+            <a href="#create" class="button primary">Create concert <b>↗</b></a>
+            <a href="#verify" class="text-link">Verify a ticket <span>→</span></a>
+          </div>
+        </div>
+        <div class="hero-poster">
+          <div class="poster-label">NEXT EVENT<br /><strong>08.24.26</strong></div>
+          <img src="https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=900&q=85" alt="Concert crowd" />
+          <div class="poster-title">NIGHT<br />PULSE</div>
+        </div>
+      </section>
+
+      <section class="metrics" aria-label="Event summary">
+        <article><p>TOTAL CONCERTS</p><strong>08</strong><small>+2 this month</small></article>
+        <article><p>TICKETS SOLD</p><strong>2,847</strong><small>72% of total supply</small></article>
+        <article><p>TOTAL REVENUE</p><strong>18.4 <b>BOT</b></strong><small>≈ $5,120.48 USD</small></article>
+        <article><p>CHECKED IN</p><strong>1,204</strong><small>42% of sold tickets</small></article>
+      </section>
+
+      <section class="section-head" id="concerts">
+        <div><p class="eyebrow">EVENT CONTROL</p><h2>YOUR <em>CONCERTS</em></h2></div>
+        <button class="button outline" id="viewAll">View all <b>→</b></button>
+      </section>
+
+      <section class="concert-grid">
+        <article class="event-card featured">
+          <img src="https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?auto=format&fit=crop&w=900&q=85" alt="Stage lights" />
+          <div class="event-info"><span class="status live">● ACTIVE</span><h3>NEON WAVES FESTIVAL</h3><p>24 AUG 2026 · THE WAREHOUSE</p><div><strong>786 <small>/ 1,000 SOLD</small></strong><button class="manage">Manage →</button></div></div>
+        </article>
+        <article class="event-card">
+          <img src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=900&q=85" alt="DJ performance" />
+          <div class="event-info"><span class="status draft">● DRAFT</span><h3>AFTER DARK</h3><p>07 SEP 2026 · SPECTRUM HALL</p><div><strong>0 <small>/ 500 SOLD</small></strong><button class="manage">Manage →</button></div></div>
+        </article>
+      </section>
+
+      <section class="work-grid">
+        <article class="create-panel" id="create">
+          <p class="eyebrow">03 / NEW EVENT</p><h2>CREATE THE<br /><em>NEXT MOMENT.</em></h2>
+          <form id="concertForm">
+            <label>CONCERT NAME<input required placeholder="e.g. Midnight Echoes" /></label>
+            <div class="two-cols"><label>DATE<input type="date" required /></label><label>TICKET PRICE<input type="number" min="0" placeholder="0.00 BOT" required /></label></div>
+            <label>VENUE<input required placeholder="Event location" /></label>
+            <button class="button primary" type="submit">Create concert <b>↗</b></button>
+          </form>
+        </article>
+        <article class="verify-panel" id="verify">
+          <p class="eyebrow">04 / DOOR CONTROL</p><h2>VERIFY<br /><em>THE VIBE.</em></h2>
+          <p>Check a ticket before entry. A valid ticket can be checked in once only.</p>
+          <button class="scan-box" id="startScanner" type="button"><span>⌁</span><strong>SCAN QR CODE</strong><small>Open camera to scan a ticket</small></button>
+          <div class="scanner" id="scanner"><div id="qrReader"></div><button class="stop-scan" id="stopScanner" type="button">Close camera ×</button></div>
+          <div class="or"><span></span> OR ENTER TICKET ID <span></span></div>
+          <div class="ticket-search"><input id="ticketId" placeholder="#000000" /><button id="verifyButton">Verify →</button></div>
+          <div class="verify-result" id="verifyResult" aria-live="polite"></div>
+        </article>
+      </section>
+    </main>
+    <div class="modal" id="eventModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-card">
+        <button class="modal-close" data-close-modal aria-label="Close">×</button>
+        <p class="eyebrow">EVENT MANAGEMENT</p>
+        <h2 id="modalTitle">CONCERT <em>DETAILS</em></h2>
+        <div class="modal-details" id="modalDetails"></div>
+        <div class="modal-actions">
+          <button class="button primary" id="statusButton" type="button">Deactivate event</button>
+          <button class="button outline" id="checkInButton" type="button">Check in a ticket</button>
+        </div>
+      </div>
+    </div>
+    <div class="toast" id="toast"></div>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script src="js/dashboard.js"></script>
+  </body>
+</html>

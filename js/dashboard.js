@@ -6,6 +6,13 @@ const showToast = (message) => {
 };
 
 document.getElementById('walletButton').addEventListener('click', async (event) => {
+  if (event.currentTarget.dataset.connected === 'true') {
+    sessionStorage.setItem('trustticket_wallet_disconnected', 'true');
+    event.currentTarget.dataset.connected = '';
+    event.currentTarget.innerHTML = '<i></i> Connect wallet';
+    showToast('Wallet disconnected from TrustTicket.');
+    return;
+  }
   if (!window.ethereum) return showToast('MetaMask not found — install it to connect.');
   try {
     const [account] = await window.ethereum.request({ method: 'eth_requestAccounts' });
@@ -14,10 +21,22 @@ document.getElementById('walletButton').addEventListener('click', async (event) 
       window.setTimeout(() => window.location.assign('index.html'), 900);
       return;
     }
-    event.currentTarget.innerHTML = `<i></i> ${account.slice(0, 6)}...${account.slice(-4)}`;
+    sessionStorage.removeItem('trustticket_wallet_disconnected');
+    event.currentTarget.dataset.connected = 'true';
+    event.currentTarget.innerHTML = `<i></i> Disconnect ${account.slice(0, 6)}...${account.slice(-4)}`;
     showToast('Wallet connected');
   } catch {
     showToast('Wallet connection was cancelled.');
+  }
+});
+
+document.addEventListener('DOMContentLoaded', async () => {
+  if (!window.ethereum || sessionStorage.getItem('trustticket_wallet_disconnected')) return;
+  const [account] = await window.ethereum.request({ method: 'eth_accounts' });
+  if (account && window.TrustTicketRoles?.isOrganizer(account)) {
+    const button = document.getElementById('walletButton');
+    button.dataset.connected = 'true';
+    button.innerHTML = `<i></i> Disconnect ${account.slice(0, 6)}...${account.slice(-4)}`;
   }
 });
 

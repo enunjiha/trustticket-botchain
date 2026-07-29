@@ -68,7 +68,7 @@
       </section>
 
       <section class="metrics" aria-label="Event summary">
-        <article><p>TOTAL CONCERTS</p><strong>08</strong><small>+2 this month</small></article>
+        <article><p>TOTAL CONCERTS</p><strong id="totalConcerts">08</strong><small>Organizer portfolio</small></article>
         <article><p>TICKETS SOLD</p><strong>2,847</strong><small>72% of total supply</small></article>
         <article><p>TOTAL REVENUE</p><strong>18.4 <b>BOT</b></strong><small>≈ $5,120.48 USD</small></article>
         <article><p>CHECKED IN</p><strong>1,204</strong><small>42% of sold tickets</small></article>
@@ -79,16 +79,7 @@
         <button class="button outline" id="viewAll">View all <b>→</b></button>
       </section>
 
-      <section class="concert-grid">
-        <article class="event-card featured">
-          <img src="https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?auto=format&fit=crop&w=900&q=85" alt="Stage lights" />
-          <div class="event-info"><span class="status live">● ACTIVE</span><h3>NEON WAVES FESTIVAL</h3><p>24 AUG 2026 · THE WAREHOUSE</p><div><strong>786 <small>/ 1,000 SOLD</small></strong><button class="manage">Manage →</button></div></div>
-        </article>
-        <article class="event-card">
-          <img src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=900&q=85" alt="DJ performance" />
-          <div class="event-info"><span class="status draft">● DRAFT</span><h3>AFTER DARK</h3><p>07 SEP 2026 · SPECTRUM HALL</p><div><strong>0 <small>/ 500 SOLD</small></strong><button class="manage">Manage →</button></div></div>
-        </article>
-      </section>
+      <section class="concert-grid" id="concertGrid" aria-live="polite"></section>
 
       <section class="work-grid">
         <article class="create-panel" id="create">
@@ -99,6 +90,8 @@
               <label class="form-group">
                   <span>CONCERT NAME</span>
                   <input
+                      id="concertName"
+                      name="name"
                       type="text"
                       placeholder="e.g. Midnight Echoes"
                       required
@@ -110,6 +103,8 @@
                   <label class="form-group">
                       <span>DATE</span>
                       <input
+                          id="concertDate"
+                          name="date"
                           type="date"
                           required
                       >
@@ -118,6 +113,8 @@
                   <label class="form-group">
                       <span>TICKET PRICE (BOT)</span>
                       <input
+                          id="concertPrice"
+                          name="price"
                           type="number"
                           min="0"
                           step="0.01"
@@ -131,8 +128,23 @@
               <label class="form-group">
                   <span>VENUE</span>
                   <input
+                      id="concertVenue"
+                      name="venue"
                       type="text"
                       placeholder="e.g. Bukit Bintang, Kuala Lumpur"
+                      required
+                  >
+              </label>
+
+              <label class="form-group">
+                  <span>TICKET SUPPLY</span>
+                  <input
+                      id="concertSupply"
+                      name="supply"
+                      type="number"
+                      min="1"
+                      step="1"
+                      placeholder="500"
                       required
                   >
               </label>

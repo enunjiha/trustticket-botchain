@@ -46,13 +46,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 });
 
-document.getElementById('concertForm').addEventListener('submit', (event) => {
-  event.preventDefault();
-  // Replace this with: contract.createConcert(...) after ABI integration.
-  event.currentTarget.reset();
-  showToast('Concert ready to create — connect your contract call here.');
-});
-
 function verifyTicket() {
   const result = document.getElementById('verifyResult');
   const ticketId = document.getElementById('ticketId').value.trim();
@@ -87,16 +80,72 @@ document.getElementById('startScanner').addEventListener('click', async () => {
 });
 document.getElementById('stopScanner').addEventListener('click', stopCamera);
 
-const events = [
-  { name: 'NEON WAVES FESTIVAL', date: '24 AUG 2026', venue: 'THE WAREHOUSE', sold: 786, supply: 1000, status: 'ACTIVE' },
-  { name: 'AFTER DARK', date: '07 SEP 2026', venue: 'SPECTRUM HALL', sold: 0, supply: 500, status: 'DRAFT' },
-  { name: 'ECHO CITY LIVE', date: '18 OCT 2026', venue: 'RIVERFRONT ARENA', sold: 304, supply: 750, status: 'ACTIVE' },
+const DEFAULT_EVENTS = [
+  { id: 'neon-waves', name: 'NEON WAVES FESTIVAL', date: '2026-08-24', venue: 'THE WAREHOUSE', price: 0.1, sold: 786, supply: 1000, status: 'ACTIVE', image: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?auto=format&fit=crop&w=900&q=85' },
+  { id: 'after-dark', name: 'AFTER DARK', date: '2026-09-07', venue: 'SPECTRUM HALL', price: 0.1, sold: 0, supply: 500, status: 'DRAFT', image: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=900&q=85' },
+  { id: 'echo-city', name: 'ECHO CITY LIVE', date: '2026-10-18', venue: 'RIVERFRONT ARENA', price: 0.1, sold: 304, supply: 750, status: 'ACTIVE', image: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=900&q=85' },
 ];
+const EVENTS_STORAGE_KEY = 'trustticket_organizer_events';
+let savedEvents = null;
+try {
+  savedEvents = JSON.parse(localStorage.getItem(EVENTS_STORAGE_KEY) || 'null');
+} catch {
+  localStorage.removeItem(EVENTS_STORAGE_KEY);
+}
+const events = Array.isArray(savedEvents) ? savedEvents : DEFAULT_EVENTS;
 let activeEvent = events[0];
+const concertGrid = document.getElementById('concertGrid');
 const eventModal = document.getElementById('eventModal');
 const modalTitle = document.getElementById('modalTitle');
 const modalDetails = document.getElementById('modalDetails');
 const statusButton = document.getElementById('statusButton');
+
+function saveEvents() {
+  localStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(events));
+}
+
+function displayDate(date) {
+  const parsed = new Date(`${date}T00:00:00`);
+  return Number.isNaN(parsed.getTime())
+    ? date
+    : new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(parsed).toUpperCase();
+}
+
+function renderEvents() {
+  concertGrid.replaceChildren();
+  document.getElementById('totalConcerts').textContent = String(events.length).padStart(2, '0');
+  events.forEach((concert, index) => {
+    const card = document.createElement('article');
+    card.className = `event-card${index === 0 ? ' featured' : ''}`;
+    const image = document.createElement('img');
+    image.src = concert.image || 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=900&q=85';
+    image.alt = `${concert.name} concert`;
+    const info = document.createElement('div');
+    info.className = 'event-info';
+    const status = document.createElement('span');
+    status.className = `status ${concert.status === 'ACTIVE' ? 'live' : 'draft'}`;
+    status.textContent = `● ${concert.status}`;
+    const title = document.createElement('h3');
+    title.textContent = concert.name;
+    const meta = document.createElement('p');
+    meta.textContent = `${displayDate(concert.date)} · ${concert.venue}`;
+    const footer = document.createElement('div');
+    const sales = document.createElement('strong');
+    sales.textContent = Number(concert.sold || 0).toLocaleString();
+    const supply = document.createElement('small');
+    supply.textContent = ` / ${Number(concert.supply).toLocaleString()} SOLD`;
+    sales.appendChild(supply);
+    const manage = document.createElement('button');
+    manage.className = 'manage';
+    manage.type = 'button';
+    manage.textContent = 'Manage →';
+    manage.addEventListener('click', () => openEventModal(concert));
+    footer.append(sales, manage);
+    info.append(status, title, meta, footer);
+    card.append(image, info);
+    concertGrid.appendChild(card);
+  });
+}
 
 function openEventModal(event) {
   activeEvent = event;
@@ -107,13 +156,39 @@ function openEventModal(event) {
 }
 function closeEventModal() { eventModal.classList.remove('open'); }
 
-document.querySelectorAll('.manage').forEach((button, index) => button.addEventListener('click', () => openEventModal(events[index])));
-document.getElementById('viewAll').addEventListener('click', () => openEventModal({ name: 'ALL CONCERTS', date: '3 EVENTS', venue: 'NEON WAVES · AFTER DARK · ECHO CITY LIVE', sold: 1090, supply: 2250, status: 'PORTFOLIO' }));
+document.getElementById('concertForm').addEventListener('submit', (event) => {
+  event.preventDefault();
+  const data = new FormData(event.currentTarget);
+  const concert = {
+    id: `local-${Date.now()}`,
+    name: data.get('name').trim().toUpperCase(),
+    date: data.get('date'),
+    venue: data.get('venue').trim().toUpperCase(),
+    price: Number(data.get('price')),
+    sold: 0,
+    supply: Number(data.get('supply')),
+    status: 'DRAFT'
+  };
+  events.unshift(concert);
+  saveEvents();
+  renderEvents();
+  event.currentTarget.reset();
+  document.getElementById('concerts').scrollIntoView({ behavior: 'smooth' });
+  showToast(`${concert.name} added to Your Concerts.`);
+});
+
+document.getElementById('viewAll').addEventListener('click', () => {
+  const sold = events.reduce((total, concert) => total + Number(concert.sold || 0), 0);
+  const supply = events.reduce((total, concert) => total + Number(concert.supply || 0), 0);
+  openEventModal({ name: 'ALL CONCERTS', date: `${events.length} EVENTS`, venue: events.map((concert) => concert.name).join(' · '), sold, supply, status: 'PORTFOLIO' });
+});
 document.querySelector('[data-close-modal]').addEventListener('click', closeEventModal);
 eventModal.addEventListener('click', (event) => { if (event.target === eventModal) closeEventModal(); });
 statusButton.addEventListener('click', () => {
   if (activeEvent.status === 'PORTFOLIO') return showToast('Choose Manage on a specific concert.');
   activeEvent.status = activeEvent.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+  saveEvents();
+  renderEvents();
   openEventModal(activeEvent);
   showToast(`${activeEvent.name} is now ${activeEvent.status}.`);
 });
@@ -122,3 +197,5 @@ document.getElementById('checkInButton').addEventListener('click', () => {
   document.getElementById('verify').scrollIntoView({ behavior: 'smooth' });
   document.getElementById('ticketId').focus();
 });
+
+renderEvents();

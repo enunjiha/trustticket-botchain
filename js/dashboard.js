@@ -11,6 +11,11 @@ document.getElementById('walletButton').addEventListener('click', async (event) 
     event.currentTarget.dataset.connected = '';
     event.currentTarget.innerHTML = '<i></i> Connect wallet';
     showToast('Wallet disconnected from TrustTicket.');
+    try {
+      await window.ethereum?.request({ method: 'wallet_revokePermissions', params: [{ eth_accounts: {} }] });
+    } catch {
+      // The portal session is still cleared when a wallet does not support permission revocation.
+    }
     window.setTimeout(() => window.location.assign('index.html'), 500);
     return;
   }

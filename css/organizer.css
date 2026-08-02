@@ -81,6 +81,11 @@ form .button{margin-top:7px}
 .scanner.open{display:block}
 #qrReader{overflow:hidden}
 #qrReader video{width:100%!important;max-height:240px;object-fit:cover}
+.scan-status{margin:8px 0;color:#aaa4b1;font:10px 'DM Mono';text-align:center}
+.scan-file{display:block;margin-top:10px;padding:10px;border:1px solid #403a49;color:#b9b3c0;text-align:center;font:700 10px Manrope;text-transform:uppercase;cursor:pointer}
+.scan-file:hover{border-color:var(--violet);color:#fff}
+.scan-file input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.scan-file-status{min-height:16px;margin:7px 0 0;color:#aaa4b1;font:10px 'DM Mono';overflow-wrap:anywhere}
 .stop-scan{width:100%;margin-top:8px;border:0;background:#292531;color:#fff;padding:10px;cursor:pointer;font:700 10px Manrope;text-transform:uppercase}
 .or{display:flex;align-items:center;gap:10px;color:#77727c;font:9px 'DM Mono';margin:16px 0}
 .or span{height:1px;background:#35323a;flex:1}

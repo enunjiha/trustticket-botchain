@@ -1,5 +1,15 @@
 let CONCERTS = [];
 
+function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, character => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;"
+    })[character]);
+}
+
 function dateParts(timestamp) {
     const date = new Date(timestamp * 1000);
     const day = new Intl.DateTimeFormat("en-MY", { day: "2-digit" }).format(date);
@@ -28,7 +38,7 @@ async function loadConcerts() {
     );
 
     CONCERTS = records
-        .filter(concert => concert.active)
+        .filter(concert => concert.active && concert.date * 1000 > Date.now())
         .map((concert, index) => {
             const date = dateParts(concert.date);
             return {
@@ -63,13 +73,13 @@ function renderFeaturedConcert() {
     }
 
     hero.innerHTML = `
-        <img src="images/hero.png" alt="${c.name} concert">
+        <img src="images/hero.png" alt="${escapeHtml(c.name)} concert">
         <div class="shell hero-content">
             <p class="eyebrow">Featured / On-chain event</p>
-            <h1>${c.name}</h1>
+            <h1>${escapeHtml(c.name)}</h1>
             <div class="event-meta">
                 <span><i data-lucide="calendar" size="17"></i> ${c.fullDate}</span>
-                <span><i data-lucide="map-pin" size="17"></i> ${c.venue}</span>
+                <span><i data-lucide="map-pin" size="17"></i> ${escapeHtml(c.venue)}</span>
                 <span><i data-lucide="ticket" size="17"></i> ${c.price} BOT</span>
             </div>
             <div class="hero-actions">
@@ -105,7 +115,7 @@ function renderHome() {
 
     list.innerHTML = CONCERTS.map(c => `
         <article class="concert-row">
-            <div class="concert-image ${c.img}" role="img" aria-label="${c.name} live performance"></div>
+            <div class="concert-image ${c.img}" role="img" aria-label="${escapeHtml(c.name)} live performance"></div>
 
             <div class="date-block">
                 <small>${c.date.split(" ")[1]}</small>
@@ -113,8 +123,8 @@ function renderHome() {
             </div>
 
             <div>
-                <h3>${c.name}</h3>
-                <div class="muted">${c.venue}</div>
+                <h3>${escapeHtml(c.name)}</h3>
+                <div class="muted">${escapeHtml(c.venue)}</div>
                 <div class="availability ${c.left < 25 ? "low" : ""}">
                     ${c.left} tickets remaining
                 </div>
@@ -155,15 +165,15 @@ function renderDetail() {
     }
 
     const visual = c.img === "hero"
-        ? `<img src="images/hero.png" alt="${c.name} performing live">`
-        : `<div class="concert-image ${c.img}" style="height:100%;border-radius:0" role="img" aria-label="${c.name} performing live"></div>`;
+        ? `<img src="images/hero.png" alt="${escapeHtml(c.name)} performing live">`
+        : `<div class="concert-image ${c.img}" style="height:100%;border-radius:0" role="img" aria-label="${escapeHtml(c.name)} performing live"></div>`;
 
     root.innerHTML = `
         <section class="detail-visual">
             ${visual}
             <div class="detail-caption">
                 <p class="eyebrow">${c.fullDate}</p>
-                <h1>${c.name}</h1>
+                <h1>${escapeHtml(c.name)}</h1>
             </div>
         </section>
 
@@ -178,7 +188,7 @@ function renderDetail() {
 
             <div class="fact">
                 <span>Venue</span>
-                <strong>${c.venue}</strong>
+                <strong>${escapeHtml(c.venue)}</strong>
             </div>
 
             <div class="fact">
@@ -193,16 +203,6 @@ function renderDetail() {
             <div class="muted">
                 Network fee not included
             </div>
-
-            ${
-                !TrustTicketContract.configured()
-                ? `<div class="notice demo">
-                        <strong>Demo Mode</strong><br>
-                        Contract address is not configured.
-                        Purchase creates a local demo ticket only.
-                   </div>`
-                : ""
-            }
 
             <button class="btn" id="buy-ticket">
                 <i data-lucide="ticket"></i>
@@ -233,57 +233,14 @@ async function buyTicket(c) {
 
         let owner = TrustWallet.account;
 
-        if (TrustTicketContract.configured()) {
-
-            if (!owner) {
-                owner = await TrustWallet.connect();
-            }
-
-            if (!owner) {
-                throw new Error("Wallet connection is required.");
-            }
-
-            await TrustTicketContract.buyTicket(c.id);
-
-        } else {
-
-            owner = owner || "DEMO-WALLET";
-
-            await new Promise(resolve =>
-                setTimeout(resolve, 1100)
-            );
-
+        if (!owner) {
+            owner = await TrustWallet.connect();
         }
 
-        const tickets = JSON.parse(
-            localStorage.getItem("trustticket_tickets") || "[]"
-        );
+        if (!owner) throw new Error("Wallet connection is required.");
 
-        const ticket = {
-            ticketId: Date.now().toString().slice(-8),
-            concertId: c.id,
-            concert: c.name,
-            owner,
-            date: c.fullDate,
-            eventTimestamp: c.eventTimestamp,
-            venue: c.venue,
-            status: "VALID",
-            used: false,
-            demo: !TrustTicketContract.configured()
-        };
-
-        tickets.unshift(ticket);
-
-        localStorage.setItem(
-            "trustticket_tickets",
-            JSON.stringify(tickets)
-        );
-
-        showToast(
-            ticket.demo
-                ? "Demo ticket created locally."
-                : "Ticket confirmed on-chain."
-        );
+        const purchase = await TrustTicketContract.buyTicket(c.id);
+        showToast(`Ticket #${purchase.ticketId} confirmed on BOTChain.`);
 
         setTimeout(() => {
             location.hash = "#tickets";
@@ -303,48 +260,10 @@ async function buyTicket(c) {
 
 }
 
-function ticketTimestamp(ticket){
-    if(Number(ticket.eventTimestamp))
-        return Number(ticket.eventTimestamp);
-    return CONCERTS.find(c=>c.id===Number(ticket.concertId))?.eventTimestamp||0
-}
-
 function ticketStatus(ticket){
-    if(ticket.used===true||String(ticket.status).toUpperCase()==="USED")
-        return"USED";const timestamp=ticketTimestamp(ticket);
-    if(timestamp&&timestamp*1000<=Date.now())return"EXPIRED";return"VALID"
-}
-
-function historyPreviewTickets(){
-    if(new URLSearchParams(location.search).get("demoHistory")!=="1")
-        return[];
-    const now=Math.floor(Date.now()/1000);
-    return[
-        {
-            ticketId:"DEMO-USED",
-            concertId:901,
-            concert:"Midnight Circuit",
-            owner:"DEMO-WALLET",
-            date:"12 July 2026 / 8:00 PM",
-            eventTimestamp:now-1209600,
-            venue:"KL Live",
-            status:"USED",
-            used:true,
-            demo:true
-        },
-        {
-            ticketId:"DEMO-EXPIRED",
-            concertId:902,
-            concert:"Signal Summer",
-            owner:"DEMO-WALLET",
-            date:"18 July 2026 / 7:30 PM",
-            eventTimestamp:now-604800,
-            venue:"RexKL, Kuala Lumpur",
-            status:"VALID",
-            used:false,
-            demo:true
-        }
-    ]
+    if (ticket.used) return "USED";
+    if (ticket.eventTimestamp * 1000 <= Date.now()) return "EXPIRED";
+    return "VALID";
 }
 
 function ticketMarkup(ticket, index) {
@@ -363,10 +282,10 @@ function ticketMarkup(ticket, index) {
             <div class="ticket-body">
 
                 <span class="ticket-status status-${status.toLowerCase()}">
-                    ${status}${ticket.demo ? " / DEMO" : ""}
+                    ${status}
                 </span>
 
-                <h2>${ticket.concert}</h2>
+                <h2>${escapeHtml(ticket.concert)}</h2>
 
                 <div class="ticket-info">
                     <div>
@@ -376,7 +295,7 @@ function ticketMarkup(ticket, index) {
 
                     <div>
                         <strong>Venue</strong><br>
-                        ${ticket.venue}
+                        ${escapeHtml(ticket.venue)}
                     </div>
 
                     <div>
@@ -456,19 +375,68 @@ function renderTicketSection(title, description, tickets, allTickets) {
     `;
 }
 
-function renderTickets() {
+async function renderTickets() {
 
     const root = document.querySelector("#ticket-list");
     if (!root) return;
 
-    const stored = JSON.parse(
-        localStorage.getItem("trustticket_tickets") || "[]"
-    );
+    let owner = TrustWallet.account;
+    if (!owner && window.ethereum) {
+        [owner] = await window.ethereum.request({ method: "eth_accounts" });
+    }
 
-    const tickets = [
-        ...stored,
-        ...historyPreviewTickets()
-    ];
+    if (!owner) {
+        root.innerHTML = `
+            <div class="empty">
+                <i data-lucide="wallet" size="40"></i>
+                <h2>Connect Your Wallet</h2>
+                <p class="muted">Your NFT tickets are loaded from BOTChain for the connected address.</p>
+                <button class="btn" id="connect-tickets">Connect wallet</button>
+            </div>`;
+        document.querySelector("#connect-tickets").onclick = async () => {
+            if (await TrustWallet.connect()) renderTickets();
+        };
+        lucide.createIcons();
+        return;
+    }
+
+    root.innerHTML = `<div class="empty"><p class="muted">Loading your tickets from BOTChain...</p></div>`;
+
+    let purchased;
+    try {
+        purchased = await TrustTicketContract.getPurchasedTickets();
+    } catch (error) {
+        root.innerHTML = `
+            <div class="empty">
+                <i data-lucide="triangle-alert" size="40"></i>
+                <h2>Unable to Load Tickets</h2>
+                <p class="muted">${error.shortMessage || error.message}</p>
+            </div>`;
+        lucide.createIcons();
+        return;
+    }
+
+    const owned = purchased.filter(ticket =>
+        ticket.owner.toLowerCase() === owner.toLowerCase()
+    );
+    const concertCache = new Map();
+    const tickets = await Promise.all(owned.map(async ticket => {
+        if (!concertCache.has(ticket.concertId)) {
+            concertCache.set(
+                ticket.concertId,
+                TrustTicketContract.getConcert(ticket.concertId)
+            );
+        }
+        const concert = await concertCache.get(ticket.concertId);
+        const formatted = dateParts(concert.date);
+        return {
+            ...ticket,
+            concert: concert.name,
+            date: formatted.full,
+            eventTimestamp: concert.date,
+            venue: concert.venue
+        };
+    }));
 
     if (!tickets.length) {
 
@@ -668,6 +636,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Handle page routing
     window.addEventListener("hashchange", route);
+    window.addEventListener("trustticket:wallet", () => {
+        if (currentRoute() === "tickets") renderTickets();
+    });
 
     // Load initial page
     route();

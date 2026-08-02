@@ -1,377 +1,588 @@
-const toast = document.getElementById('toast');
-const showToast = (message) => {
-  toast.textContent = message;
-  toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 3000);
-};
+const toast = document.getElementById("toast");
+const walletButton = document.getElementById("walletButton");
+const concertGrid = document.getElementById("concertGrid");
+const eventModal = document.getElementById("eventModal");
+const modalTitle = document.getElementById("modalTitle");
+const modalDetails = document.getElementById("modalDetails");
+const statusButton = document.getElementById("statusButton");
+const eventInsights = document.getElementById("eventInsights");
+const insightGrid = document.getElementById("insightGrid");
+const attendeeCount = document.getElementById("attendeeCount");
+const attendeeSearch = document.getElementById("attendeeSearch");
+const attendeeList = document.getElementById("attendeeList");
+const verifyResult = document.getElementById("verifyResult");
+const ticketInput = document.getElementById("ticketId");
 
-document.getElementById('walletButton').addEventListener('click', async (event) => {
-  if (event.currentTarget.dataset.connected === 'true') {
-    sessionStorage.setItem('trustticket_wallet_disconnected', 'true');
-    event.currentTarget.dataset.connected = '';
-    event.currentTarget.innerHTML = '<i></i> Connect wallet';
-    showToast('Wallet disconnected from TrustTicket.');
-    try {
-      await window.ethereum?.request({ method: 'wallet_revokePermissions', params: [{ eth_accounts: {} }] });
-    } catch {
-      // The portal session is still cleared when a wallet does not support permission revocation.
-    }
-    window.setTimeout(() => window.location.assign('index.html'), 500);
+let account = null;
+let events = [];
+let tickets = [];
+let activeEvent = null;
+let activeAttendees = [];
+let qrScanner = null;
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;"
+  })[character]);
+}
+
+function showToast(message, error = false) {
+  toast.textContent = message;
+  toast.className = `show${error ? " error" : ""}`;
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => {
+    toast.className = "";
+  }, 4000);
+}
+
+function errorMessage(error) {
+  return error?.shortMessage || error?.reason || error?.message || "Transaction failed.";
+}
+
+function sameAddress(left, right) {
+  return String(left).toLowerCase() === String(right).toLowerCase();
+}
+
+function shortWallet(address) {
+  return address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "Not connected";
+}
+
+async function ensureBotChain() {
+  const chainId = await window.ethereum.request({ method: "eth_chainId" });
+  if (chainId === "0x3c8") return;
+
+  try {
+    await window.ethereum.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: "0x3c8" }]
+    });
+  } catch (error) {
+    if (error.code !== 4902) throw error;
+    await window.ethereum.request({
+      method: "wallet_addEthereumChain",
+      params: [{
+        chainId: "0x3c8",
+        chainName: "BOT Chain Testnet",
+        nativeCurrency: { name: "BOT", symbol: "BOT", decimals: 18 },
+        rpcUrls: ["https://rpc.bohr.life"],
+        blockExplorerUrls: ["https://scan.bohr.life/"]
+      }]
+    });
+  }
+}
+
+function updateWalletButton() {
+  walletButton.dataset.connected = account ? "true" : "";
+  walletButton.innerHTML = account
+    ? `<i></i> Disconnect ${shortWallet(account)}`
+    : "<i></i> Connect wallet";
+}
+
+async function connectWallet() {
+  if (!window.ethereum) {
+    showToast("MetaMask is required to use the organizer portal.", true);
+    return null;
+  }
+
+  await ensureBotChain();
+  const [selected] = await window.ethereum.request({ method: "eth_requestAccounts" });
+  if (!selected) return null;
+  if (!window.TrustTicketRoles?.isOrganizer(selected)) {
+    throw new Error("This wallet has not been approved as an organizer.");
+  }
+
+  account = selected;
+  sessionStorage.removeItem("trustticket_wallet_disconnected");
+  updateWalletButton();
+  await loadDashboard();
+  return account;
+}
+
+walletButton.addEventListener("click", async () => {
+  if (account) {
+    account = null;
+    sessionStorage.setItem("trustticket_wallet_disconnected", "true");
+    updateWalletButton();
+    events = [];
+    tickets = [];
+    renderEvents();
+    showToast("Wallet disconnected from TrustTicket.");
     return;
   }
-  if (!window.ethereum) return showToast('MetaMask not found — install it to connect.');
+
   try {
-    const [account] = await window.ethereum.request({ method: 'eth_requestAccounts' });
-    if (!window.TrustTicketRoles?.isOrganizer(account)) {
-      showToast('This wallet is a customer account. Opening the customer portal.');
-      window.setTimeout(() => window.location.assign('index.html'), 900);
-      return;
-    }
-    sessionStorage.removeItem('trustticket_wallet_disconnected');
-    event.currentTarget.dataset.connected = 'true';
-    event.currentTarget.innerHTML = `<i></i> Disconnect ${account.slice(0, 6)}...${account.slice(-4)}`;
-    showToast('Wallet connected');
-  } catch {
-    showToast('Wallet connection was cancelled.');
+    await connectWallet();
+    showToast("Organizer wallet connected.");
+  } catch (error) {
+    showToast(errorMessage(error), true);
   }
 });
 
-document.addEventListener('DOMContentLoaded', async () => {
-  if (!window.ethereum || sessionStorage.getItem('trustticket_wallet_disconnected')) return;
-  const [account] = await window.ethereum.request({ method: 'eth_accounts' });
-  if (account && window.TrustTicketRoles?.isOrganizer(account)) {
-    const button = document.getElementById('walletButton');
-    button.dataset.connected = 'true';
-    button.innerHTML = `<i></i> Disconnect ${account.slice(0, 6)}...${account.slice(-4)}`;
-  }
-});
-
-function verifyTicket() {
-  const result = document.getElementById('verifyResult');
-  const ticketId = document.getElementById('ticketId').value.trim();
-  if (!ticketId) { result.className = 'verify-result used'; result.textContent = 'ENTER A TICKET ID FIRST'; return; }
-  // Replace this demo response with contract.verifyTicket(ticketId).
-  result.className = 'verify-result valid';
-  result.textContent = `VALID — ${ticketId.toUpperCase()} · READY FOR CHECK-IN`;
+function displayDate(timestamp) {
+  return new Intl.DateTimeFormat("en-MY", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric"
+  }).format(new Date(timestamp * 1000)).toUpperCase();
 }
-document.getElementById('verifyButton').addEventListener('click', verifyTicket);
 
-let qrScanner;
-const scannerPanel = document.getElementById('scanner');
-async function stopCamera() {
-  if (qrScanner?.isScanning) await qrScanner.stop();
-  scannerPanel.classList.remove('open');
+function dateInputValue(timestamp) {
+  return new Date(timestamp * 1000).toISOString().slice(0, 10);
 }
-document.getElementById('startScanner').addEventListener('click', async () => {
-  if (!window.Html5Qrcode) return showToast('Scanner is loading. Refresh and check your internet.');
+
+async function loadDashboard() {
+  if (!account) return;
+
+  concertGrid.innerHTML = "<p>Loading your concerts from BOTChain...</p>";
+  const total = await TrustTicketContract.getTotalConcerts();
+  const allConcerts = await Promise.all(
+    Array.from({ length: total }, (_, index) =>
+      TrustTicketContract.getConcert(index + 1)
+    )
+  );
+
+  events = allConcerts
+    .filter((concert) => sameAddress(concert.organizer, account))
+    .map((concert) => ({
+      ...concert,
+      sold: concert.ticketsSold,
+      supply: concert.totalTickets,
+      status: concert.active ? "ACTIVE" : "INACTIVE"
+    }));
+
   try {
-    scannerPanel.classList.add('open');
-    qrScanner = new Html5Qrcode('qrReader');
-    await qrScanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 220, height: 220 } }, async (decodedText) => {
-      document.getElementById('ticketId').value = decodedText;
-      await stopCamera();
-      verifyTicket();
-      showToast('QR code scanned successfully');
-    });
-  } catch {
-    scannerPanel.classList.remove('open');
-    showToast('Camera permission was blocked or no camera was found.');
+    tickets = await TrustTicketContract.getPurchasedTickets();
+  } catch (error) {
+    console.error("Unable to load ticket events:", error);
+    tickets = [];
+    showToast("Concerts loaded, but ticket history could not be read.", true);
   }
-});
-document.getElementById('stopScanner').addEventListener('click', stopCamera);
 
-const DEFAULT_EVENTS = [
-  { id: 'neon-waves', name: 'NEON WAVES FESTIVAL', date: '2026-08-24', venue: 'THE WAREHOUSE', price: 0.1, sold: 786, supply: 1000, status: 'ACTIVE', image: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?auto=format&fit=crop&w=900&q=85' },
-  { id: 'after-dark', name: 'AFTER DARK', date: '2026-09-07', venue: 'SPECTRUM HALL', price: 0.1, sold: 0, supply: 500, status: 'DRAFT', image: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=900&q=85' },
-  { id: 'echo-city', name: 'ECHO CITY LIVE', date: '2026-10-18', venue: 'RIVERFRONT ARENA', price: 0.1, sold: 304, supply: 750, status: 'ACTIVE', image: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=900&q=85' },
-];
-const EVENTS_STORAGE_KEY = 'trustticket_organizer_events';
-let savedEvents = null;
-try {
-  savedEvents = JSON.parse(localStorage.getItem(EVENTS_STORAGE_KEY) || 'null');
-} catch {
-  localStorage.removeItem(EVENTS_STORAGE_KEY);
-}
-const events = Array.isArray(savedEvents) ? savedEvents : DEFAULT_EVENTS;
-let activeEvent = events[0];
-const concertGrid = document.getElementById('concertGrid');
-const eventModal = document.getElementById('eventModal');
-const modalTitle = document.getElementById('modalTitle');
-const modalDetails = document.getElementById('modalDetails');
-const statusButton = document.getElementById('statusButton');
-const eventInsights = document.getElementById('eventInsights');
-const insightGrid = document.getElementById('insightGrid');
-const attendeeCount = document.getElementById('attendeeCount');
-const attendeeSearch = document.getElementById('attendeeSearch');
-const attendeeList = document.getElementById('attendeeList');
-const editEventForm = document.getElementById('editEventForm');
-const modalActions = document.querySelector('.modal-actions');
-const editEventButton = document.getElementById('editEventButton');
-const deleteEventButton = document.getElementById('deleteEventButton');
-let activeAttendees = [];
-
-function saveEvents() {
-  localStorage.setItem(EVENTS_STORAGE_KEY, JSON.stringify(events));
+  renderEvents();
+  renderMetrics();
 }
 
-function displayDate(date) {
-  const parsed = new Date(`${date}T00:00:00`);
-  return Number.isNaN(parsed.getTime())
-    ? date
-    : new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(parsed).toUpperCase();
+function renderMetrics() {
+  const eventIds = new Set(events.map((event) => event.id));
+  const organizerTickets = tickets.filter((ticket) => eventIds.has(ticket.concertId));
+  const sold = events.reduce((sum, event) => sum + event.ticketsSold, 0);
+  const revenue = events.reduce(
+    (sum, event) => sum + (Number(event.price) * event.ticketsSold),
+    0
+  );
+  const checkedIn = organizerTickets.filter((ticket) => ticket.used).length;
+
+  document.getElementById("totalConcerts").textContent = String(events.length).padStart(2, "0");
+  document.getElementById("totalTicketsSold").textContent = sold.toLocaleString();
+  document.getElementById("totalRevenue").innerHTML = `${revenue.toFixed(3)} <b>BOT</b>`;
+  document.getElementById("totalCheckedIn").textContent = checkedIn.toLocaleString();
 }
 
 function renderEvents() {
   concertGrid.replaceChildren();
-  document.getElementById('totalConcerts').textContent = String(events.length).padStart(2, '0');
+  if (!account) {
+    concertGrid.innerHTML = "<p>Connect an approved organizer wallet to load its concerts.</p>";
+    renderMetrics();
+    return;
+  }
+  if (!events.length) {
+    concertGrid.innerHTML = "<p>No concerts have been created by this wallet yet.</p>";
+    renderMetrics();
+    return;
+  }
+
   events.forEach((concert, index) => {
-    const card = document.createElement('article');
-    card.className = `event-card${index === 0 ? ' featured' : ''}`;
-    const image = document.createElement('img');
-    image.src = concert.image || 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=900&q=85';
-    image.alt = `${concert.name} concert`;
-    const info = document.createElement('div');
-    info.className = 'event-info';
-    const status = document.createElement('span');
-    status.className = `status ${concert.status === 'ACTIVE' ? 'live' : 'draft'}`;
-    status.textContent = `● ${concert.status}`;
-    const title = document.createElement('h3');
-    title.textContent = concert.name;
-    const meta = document.createElement('p');
-    meta.textContent = `${displayDate(concert.date)} · ${concert.venue}`;
-    const footer = document.createElement('div');
-    const sales = document.createElement('strong');
-    sales.textContent = Number(concert.sold || 0).toLocaleString();
-    const supply = document.createElement('small');
-    supply.textContent = ` / ${Number(concert.supply).toLocaleString()} SOLD`;
-    sales.appendChild(supply);
-    const manage = document.createElement('button');
-    manage.className = 'manage';
-    manage.type = 'button';
-    manage.textContent = 'Manage →';
-    manage.addEventListener('click', () => openEventModal(concert));
-    footer.append(sales, manage);
-    info.append(status, title, meta, footer);
-    card.append(image, info);
+    const card = document.createElement("article");
+    card.className = `event-card${index === 0 ? " featured" : ""}`;
+    card.innerHTML = `
+      <img src="https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=900&q=85" alt="${escapeHtml(concert.name)} concert">
+      <div class="event-info">
+        <span class="status ${concert.active ? "live" : "draft"}">● ${concert.status}</span>
+        <h3>${escapeHtml(concert.name)}</h3>
+        <p>${displayDate(concert.date)} · ${escapeHtml(concert.venue)}</p>
+        <div>
+          <strong>${concert.ticketsSold.toLocaleString()}<small> / ${concert.totalTickets.toLocaleString()} SOLD</small></strong>
+          <button class="manage" type="button">Manage →</button>
+        </div>
+      </div>`;
+    card.querySelector(".manage").addEventListener("click", () => openEventModal(concert));
     concertGrid.appendChild(card);
   });
 }
 
-function storedTickets() {
-  try {
-    const tickets = JSON.parse(localStorage.getItem('trustticket_tickets') || '[]');
-    return Array.isArray(tickets) ? tickets : [];
-  } catch {
-    return [];
-  }
+function attendeesFor(concert) {
+  return tickets.filter((ticket) => ticket.concertId === concert.id);
 }
 
-function attendeesFor(event) {
-  return storedTickets().filter((ticket) =>
-    String(ticket.concertId) === String(event.id) ||
-    String(ticket.concert || '').trim().toLowerCase() === event.name.trim().toLowerCase()
-  );
-}
-
-function shortWallet(wallet) {
-  const value = String(wallet || 'Unknown');
-  return value.length > 15 ? `${value.slice(0, 7)}...${value.slice(-5)}` : value;
-}
-
-function renderAttendees(query = '') {
+function renderAttendees(query = "") {
   const term = query.trim().toLowerCase();
   const filtered = activeAttendees.filter((ticket) =>
-    String(ticket.ticketId).toLowerCase().includes(term) ||
-    String(ticket.owner).toLowerCase().includes(term)
+    String(ticket.ticketId).includes(term) ||
+    ticket.owner.toLowerCase().includes(term)
   );
   attendeeList.replaceChildren();
-  attendeeCount.textContent = `${activeAttendees.length} ${activeAttendees.length === 1 ? 'BUYER' : 'BUYERS'}`;
+  attendeeCount.textContent = `${activeAttendees.length} ${activeAttendees.length === 1 ? "BUYER" : "BUYERS"}`;
+
   if (!filtered.length) {
-    const empty = document.createElement('p');
-    empty.className = 'attendee-empty';
-    empty.textContent = activeAttendees.length ? 'No matching ticket holder.' : 'No ticket purchases recorded for this event yet.';
-    attendeeList.appendChild(empty);
+    attendeeList.innerHTML = `<p class="attendee-empty">${
+      activeAttendees.length ? "No matching ticket holder." : "No on-chain ticket purchases for this event yet."
+    }</p>`;
     return;
   }
+
   filtered.forEach((ticket) => {
-    const row = document.createElement('div');
-    row.className = 'attendee-row';
-    const ticketCell = document.createElement('div');
-    const ticketLabel = document.createElement('span');
-    ticketLabel.textContent = 'Ticket';
-    const ticketValue = document.createElement('strong');
-    ticketValue.textContent = `#${ticket.ticketId}`;
-    ticketCell.append(ticketLabel, ticketValue);
-    const ownerCell = document.createElement('div');
-    ownerCell.className = 'attendee-owner';
-    const ownerLabel = document.createElement('span');
-    ownerLabel.textContent = 'Wallet';
-    const ownerValue = document.createElement('strong');
-    ownerValue.textContent = shortWallet(ticket.owner);
-    ownerValue.title = ticket.owner || '';
-    ownerCell.append(ownerLabel, ownerValue);
-    const action = document.createElement('button');
-    action.className = 'checkin-small';
-    action.type = 'button';
-    action.disabled = Boolean(ticket.used);
-    action.textContent = ticket.used ? 'Checked in' : 'Check in';
-    if (ticket.used) action.classList.add('used');
-    action.addEventListener('click', () => checkInAttendee(ticket.ticketId));
-    row.append(ticketCell, ownerCell, action);
+    const row = document.createElement("div");
+    row.className = "attendee-row";
+    row.innerHTML = `
+      <div><span>Ticket</span><strong>#${ticket.ticketId}</strong></div>
+      <div class="attendee-owner"><span>Wallet</span><strong title="${ticket.owner}">${shortWallet(ticket.owner)}</strong></div>
+      <button class="checkin-small${ticket.used ? " used" : ""}" type="button" ${ticket.used ? "disabled" : ""}>
+        ${ticket.used ? "Checked in" : "Check in"}
+      </button>`;
+    row.querySelector("button").addEventListener("click", () => checkInTicket(ticket.ticketId));
     attendeeList.appendChild(row);
   });
 }
 
-function checkInAttendee(ticketId) {
-  const tickets = storedTickets();
-  const ticket = tickets.find((item) => String(item.ticketId) === String(ticketId));
-  if (!ticket || ticket.used) return;
-  ticket.used = true;
-  ticket.status = 'USED';
-  ticket.checkedInAt = new Date().toISOString();
-  localStorage.setItem('trustticket_tickets', JSON.stringify(tickets));
-  activeAttendees = attendeesFor(activeEvent);
-  renderEventInsights(activeEvent);
-  showToast(`Ticket #${ticketId} checked in.`);
-}
-
-function renderEventInsights(event) {
-  const isPortfolio = event.status === 'PORTFOLIO';
-  eventInsights.hidden = isPortfolio;
-  if (isPortfolio) return;
-  activeAttendees = attendeesFor(event);
-  const checkedIn = activeAttendees.filter((ticket) => ticket.used || ticket.status === 'USED').length;
-  const recordedSales = Math.max(Number(event.sold || 0), activeAttendees.length);
-  const revenue = recordedSales * Number(event.price || 0);
+function renderEventInsights(concert) {
+  activeAttendees = attendeesFor(concert);
+  const checkedIn = activeAttendees.filter((ticket) => ticket.used).length;
+  const revenue = Number(concert.price) * concert.ticketsSold;
   insightGrid.innerHTML = `
-    <div class="insight"><span>Recorded sales</span><strong>${recordedSales.toLocaleString()}</strong></div>
+    <div class="insight"><span>On-chain sales</span><strong>${concert.ticketsSold}</strong></div>
     <div class="insight"><span>Revenue</span><strong>${revenue.toFixed(3)} BOT</strong></div>
-    <div class="insight"><span>Checked in</span><strong>${checkedIn} / ${activeAttendees.length}</strong></div>
-  `;
-  attendeeSearch.value = '';
+    <div class="insight"><span>Checked in</span><strong>${checkedIn} / ${activeAttendees.length}</strong></div>`;
+  attendeeSearch.value = "";
   renderAttendees();
 }
 
-function openEventModal(event) {
-  activeEvent = event;
-  editEventForm.hidden = true;
-  modalActions.hidden = false;
-  modalTitle.replaceChildren();
-  modalTitle.append(`${event.name.split(' ').slice(0, 2).join(' ')} `);
-  const detailsAccent = document.createElement('em');
-  detailsAccent.textContent = 'DETAILS';
-  modalTitle.appendChild(detailsAccent);
-  modalDetails.innerHTML = `<div><span>Date</span><strong>${event.date}</strong></div><div><span>Venue</span><strong>${event.venue}</strong></div><div><span>Tickets sold</span><strong>${event.sold} / ${event.supply}</strong></div><div><span>Status</span><strong>${event.status}</strong></div>`;
-  statusButton.textContent = event.status === 'ACTIVE' ? 'Deactivate event' : 'Activate event';
-  editEventButton.hidden = event.status === 'PORTFOLIO';
-  deleteEventButton.hidden = event.status === 'PORTFOLIO';
-  renderEventInsights(event);
-  eventModal.classList.add('open');
+function openEventModal(concert) {
+  activeEvent = concert;
+  modalTitle.innerHTML = `${escapeHtml(concert.name)} <em>DETAILS</em>`;
+  modalDetails.innerHTML = `
+    <div><span>Contract ID</span><strong>#${concert.id}</strong></div>
+    <div><span>Date</span><strong>${displayDate(concert.date)}</strong></div>
+    <div><span>Venue</span><strong>${escapeHtml(concert.venue)}</strong></div>
+    <div><span>Price</span><strong>${concert.price} BOT</strong></div>
+    <div><span>Tickets sold</span><strong>${concert.ticketsSold} / ${concert.totalTickets}</strong></div>
+    <div><span>Status</span><strong>${concert.status}</strong></div>`;
+  statusButton.textContent = concert.active ? "Deactivate event" : "Activate event";
+  document.getElementById("editEventButton").hidden = true;
+  document.getElementById("deleteEventButton").hidden = true;
+  eventInsights.hidden = false;
+  renderEventInsights(concert);
+  eventModal.classList.add("open");
 }
-function closeEventModal() { eventModal.classList.remove('open'); }
 
-document.getElementById('concertForm').addEventListener('submit', (event) => {
+function closeEventModal() {
+  eventModal.classList.remove("open");
+}
+
+async function checkInTicket(ticketId) {
+  try {
+    if (!account) await connectWallet();
+    const ticket = await TrustTicketContract.getTicket(ticketId);
+    const concert = await TrustTicketContract.getConcert(ticket.concertId);
+    if (!sameAddress(concert.organizer, account)) {
+      throw new Error("This ticket belongs to another organizer's concert.");
+    }
+    if (ticket.used) throw new Error("This ticket has already been checked in.");
+
+    showToast("Confirm the check-in transaction in MetaMask.");
+    await TrustTicketContract.checkIn(ticketId);
+    showToast(`Ticket #${ticketId} checked in on BOTChain.`);
+    await loadDashboard();
+    if (activeEvent) {
+      const refreshed = events.find((event) => event.id === activeEvent.id);
+      if (refreshed) openEventModal(refreshed);
+    }
+    await verifyTicket();
+  } catch (error) {
+    showToast(errorMessage(error), true);
+  }
+}
+
+function parsedTicketId(rawValue) {
+  const value = String(rawValue).trim();
+  if (!value) return null;
+  if (/^\d+$/.test(value)) return value;
+  const compactMatch = value.match(/^trustticket:(\d+)$/i);
+  if (compactMatch) return compactMatch[1];
+  try {
+    const payload = JSON.parse(value);
+    return payload && typeof payload === "object"
+      ? String(payload.ticketId || "").replace(/^#/, "")
+      : null;
+  } catch {
+    return value.replace(/^#/, "");
+  }
+}
+
+async function verifyTicket() {
+  const ticketId = parsedTicketId(ticketInput.value);
+  verifyResult.replaceChildren();
+  if (!ticketId || !/^\d+$/.test(ticketId)) {
+    verifyResult.className = "verify-result used";
+    verifyResult.textContent = "ENTER A VALID NUMERIC TICKET ID";
+    return;
+  }
+
+  try {
+    const ticket = await TrustTicketContract.getTicket(ticketId);
+    const concert = await TrustTicketContract.getConcert(ticket.concertId);
+    const belongsToOrganizer = account && sameAddress(concert.organizer, account);
+    const valid = await TrustTicketContract.verifyTicket(ticketId);
+
+    if (!belongsToOrganizer) {
+      verifyResult.className = "verify-result used";
+      verifyResult.textContent = `NOT AUTHORIZED · TICKET BELONGS TO ${shortWallet(concert.organizer)}`;
+      return;
+    }
+    if (!valid || ticket.used) {
+      verifyResult.className = "verify-result used";
+      verifyResult.textContent = `USED · TICKET #${ticketId}`;
+      return;
+    }
+
+    verifyResult.className = "verify-result valid";
+    verifyResult.innerHTML = `VALID · ${escapeHtml(concert.name)} · OWNER ${shortWallet(ticket.owner)} `;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "checkin-small";
+    button.textContent = "Check in";
+    button.addEventListener("click", () => checkInTicket(ticketId));
+    verifyResult.appendChild(button);
+  } catch (error) {
+    verifyResult.className = "verify-result used";
+    verifyResult.textContent = errorMessage(error);
+  }
+}
+
+document.getElementById("verifyButton").addEventListener("click", verifyTicket);
+
+const scannerPanel = document.getElementById("scanner");
+const scanStatus = document.getElementById("scanStatus");
+let scanHintTimer = null;
+async function stopCamera() {
+  if (qrScanner?.isScanning) await qrScanner.stop();
+  clearTimeout(scanHintTimer);
+  scannerPanel.classList.remove("open");
+}
+
+document.getElementById("startScanner").addEventListener("click", async () => {
+  if (!window.Html5Qrcode) return showToast("QR scanner failed to load.", true);
+  try {
+    scannerPanel.classList.add("open");
+    scanStatus.textContent = "Requesting camera access...";
+    const cameras = await Html5Qrcode.getCameras();
+    if (!cameras.length) throw new Error("No camera was found on this device.");
+    const selectedCamera =
+      cameras.find((camera) => /back|rear|environment/i.test(camera.label)) ||
+      cameras[0];
+
+    if (qrScanner) {
+      try {
+        await qrScanner.clear();
+      } catch {
+        // A new scanner is created even if the previous instance was already cleared.
+      }
+    }
+    qrScanner = new Html5Qrcode("qrReader", {
+      formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+      experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+      verbose: false
+    });
+    await qrScanner.start(
+      selectedCamera.id,
+      {
+        fps: 15,
+        aspectRatio: 1,
+        disableFlip: false,
+        qrbox: (width, height) => {
+          const size = Math.floor(Math.min(width, height) * 0.78);
+          return { width: size, height: size };
+        }
+      },
+      async (decodedText) => {
+        scanStatus.textContent = "QR detected. Verifying ticket...";
+        ticketInput.value = parsedTicketId(decodedText) || decodedText;
+        await stopCamera();
+        await verifyTicket();
+      },
+      () => {}
+    );
+    scanStatus.textContent = "Looking for a QR code...";
+    scanHintTimer = setTimeout(() => {
+      scanStatus.textContent = "Keep the full QR inside the frame, hold steady, and reduce screen glare.";
+    }, 7000);
+  } catch (error) {
+    const message = errorMessage(error) || "Camera could not start.";
+    scannerPanel.classList.add("open");
+    scanStatus.textContent = `Camera error: ${message}`;
+    showToast(message, true);
+  }
+});
+document.getElementById("stopScanner").addEventListener("click", stopCamera);
+
+async function decodeQrImage(file) {
+  if ("BarcodeDetector" in window) {
+    try {
+      const detector = new BarcodeDetector({ formats: ["qr_code"] });
+      const bitmap = await createImageBitmap(file);
+      const results = await detector.detect(bitmap);
+      bitmap.close();
+      if (results[0]?.rawValue) return results[0].rawValue;
+    } catch {
+      // Fall through to html5-qrcode for browsers without native QR support.
+    }
+  }
+
+  const readerId = `qrFileReader-${Date.now()}`;
+  const reader = document.createElement("div");
+  reader.id = readerId;
+  reader.style.cssText = "position:fixed;left:-10000px;top:0;width:600px;height:600px";
+  document.body.appendChild(reader);
+  const fileScanner = new Html5Qrcode(readerId, {
+    formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+    verbose: false
+  });
+
+  try {
+    return await fileScanner.scanFile(file, false);
+  } finally {
+    try {
+      await fileScanner.clear();
+    } catch {
+      // The temporary reader is removed even if the library has already cleared it.
+    }
+    reader.remove();
+  }
+}
+
+document.getElementById("qrImageInput").addEventListener("change", async (event) => {
+  const [file] = event.target.files;
+  if (!file) return;
+  const fileStatus = document.getElementById("scanFileStatus");
+  fileStatus.textContent = `Reading ${file.name}...`;
+  try {
+    await stopCamera();
+    const decodedText = await decodeQrImage(file);
+    ticketInput.value = parsedTicketId(decodedText) || decodedText;
+    fileStatus.textContent = `QR detected: ticket #${ticketInput.value}`;
+    await verifyTicket();
+    showToast("QR image detected.");
+  } catch (error) {
+    fileStatus.textContent = "No QR code was detected in this image. Use a clear screenshot containing the full QR.";
+    showToast(`QR image was not detected: ${errorMessage(error)}`, true);
+  } finally {
+    event.target.value = "";
+  }
+});
+
+document.getElementById("concertForm").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const data = new FormData(event.currentTarget);
-  const concert = {
-    id: `local-${Date.now()}`,
-    name: data.get('name').trim().toUpperCase(),
-    date: data.get('date'),
-    venue: data.get('venue').trim().toUpperCase(),
-    price: Number(data.get('price')),
-    sold: 0,
-    supply: Number(data.get('supply')),
-    status: 'DRAFT'
-  };
-  events.unshift(concert);
-  saveEvents();
-  renderEvents();
-  event.currentTarget.reset();
-  document.getElementById('concerts').scrollIntoView({ behavior: 'smooth' });
-  showToast(`${concert.name} added to Your Concerts.`);
+  const button = event.currentTarget.querySelector('button[type="submit"]');
+  try {
+    if (!account) await connectWallet();
+    const data = new FormData(event.currentTarget);
+    const timestamp = Math.floor(new Date(`${data.get("date")}T20:00:00`).getTime() / 1000);
+    if (timestamp <= Math.floor(Date.now() / 1000)) {
+      throw new Error("Concert date must be in the future.");
+    }
+
+    button.disabled = true;
+    showToast("Confirm concert creation in MetaMask.");
+    await TrustTicketContract.createConcert(
+      data.get("name").trim(),
+      data.get("venue").trim(),
+      timestamp,
+      data.get("price"),
+      Number(data.get("supply"))
+    );
+    event.currentTarget.reset();
+    await loadDashboard();
+    document.getElementById("concerts").scrollIntoView({ behavior: "smooth" });
+    showToast("Concert created on BOTChain.");
+  } catch (error) {
+    showToast(errorMessage(error), true);
+  } finally {
+    button.disabled = false;
+  }
 });
 
-document.getElementById('viewAll').addEventListener('click', () => {
-  const sold = events.reduce((total, concert) => total + Number(concert.sold || 0), 0);
-  const supply = events.reduce((total, concert) => total + Number(concert.supply || 0), 0);
-  openEventModal({ name: 'ALL CONCERTS', date: `${events.length} EVENTS`, venue: events.map((concert) => concert.name).join(' · '), sold, supply, status: 'PORTFOLIO' });
+statusButton.addEventListener("click", async () => {
+  if (!activeEvent) return;
+  try {
+    statusButton.disabled = true;
+    showToast("Confirm the status transaction in MetaMask.");
+    await TrustTicketContract.updateConcertStatus(activeEvent.id, !activeEvent.active);
+    const eventId = activeEvent.id;
+    await loadDashboard();
+    const refreshed = events.find((event) => event.id === eventId);
+    if (refreshed) openEventModal(refreshed);
+    showToast(`Concert ${refreshed?.active ? "activated" : "deactivated"} on BOTChain.`);
+  } catch (error) {
+    showToast(errorMessage(error), true);
+  } finally {
+    statusButton.disabled = false;
+  }
 });
-attendeeSearch.addEventListener('input', () => renderAttendees(attendeeSearch.value));
-document.getElementById('exportAttendees').addEventListener('click', () => {
-  if (!activeAttendees.length) return showToast('No ticket holders to export.');
-  const rows = [['Ticket ID', 'Wallet', 'Status', 'Checked in at'], ...activeAttendees.map((ticket) => [
-    ticket.ticketId,
-    ticket.owner,
-    ticket.used || ticket.status === 'USED' ? 'CHECKED IN' : 'VALID',
-    ticket.checkedInAt || ''
-  ])];
-  const csv = rows.map((row) => row.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-  link.download = `${activeEvent.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-attendees.csv`;
+
+document.getElementById("viewAll").addEventListener("click", () => {
+  document.getElementById("concerts").scrollIntoView({ behavior: "smooth" });
+});
+attendeeSearch.addEventListener("input", () => renderAttendees(attendeeSearch.value));
+document.getElementById("exportAttendees").addEventListener("click", () => {
+  if (!activeAttendees.length) return showToast("No ticket holders to export.");
+  const rows = [
+    ["Ticket ID", "Wallet", "Status"],
+    ...activeAttendees.map((ticket) => [
+      ticket.ticketId,
+      ticket.owner,
+      ticket.used ? "CHECKED IN" : "VALID"
+    ])
+  ];
+  const csv = rows.map((row) => row.map((value) => `"${value}"`).join(",")).join("\n");
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+  link.download = `${activeEvent.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-attendees.csv`;
   link.click();
   URL.revokeObjectURL(link.href);
 });
-editEventButton.addEventListener('click', () => {
-  document.getElementById('editEventName').value = activeEvent.name;
-  document.getElementById('editEventDate').value = activeEvent.date;
-  document.getElementById('editEventVenue').value = activeEvent.venue;
-  document.getElementById('editEventPrice').value = Number(activeEvent.price || 0);
-  const supplyInput = document.getElementById('editEventSupply');
-  supplyInput.min = Math.max(1, Number(activeEvent.sold || 0));
-  supplyInput.value = Number(activeEvent.supply || 1);
-  eventInsights.hidden = true;
-  modalActions.hidden = true;
-  editEventForm.hidden = false;
+
+document.querySelector("[data-close-modal]").addEventListener("click", closeEventModal);
+eventModal.addEventListener("click", (event) => {
+  if (event.target === eventModal) closeEventModal();
 });
-document.getElementById('cancelEditEvent').addEventListener('click', () => openEventModal(activeEvent));
-editEventForm.addEventListener('submit', (event) => {
-  event.preventDefault();
-  const data = new FormData(event.currentTarget);
-  const newSupply = Number(data.get('supply'));
-  if (newSupply < Number(activeEvent.sold || 0)) {
-    return showToast(`Supply cannot be lower than ${activeEvent.sold} tickets already sold.`);
-  }
-  activeEvent.name = data.get('name').trim().toUpperCase();
-  activeEvent.date = data.get('date');
-  activeEvent.venue = data.get('venue').trim().toUpperCase();
-  activeEvent.price = Number(data.get('price'));
-  activeEvent.supply = newSupply;
-  saveEvents();
-  renderEvents();
-  openEventModal(activeEvent);
-  showToast(`${activeEvent.name} updated successfully.`);
-});
-deleteEventButton.addEventListener('click', () => {
-  const buyerCount = attendeesFor(activeEvent).length;
-  const warning = buyerCount
-    ? `This event has ${buyerCount} recorded ticket holder(s). Delete ${activeEvent.name}?`
-    : `Delete ${activeEvent.name}? This action cannot be undone.`;
-  if (!window.confirm(warning)) return;
-  const eventIndex = events.indexOf(activeEvent);
-  if (eventIndex === -1) return;
-  const deletedName = activeEvent.name;
-  events.splice(eventIndex, 1);
-  saveEvents();
-  renderEvents();
+document.getElementById("checkInButton").addEventListener("click", () => {
   closeEventModal();
-  activeEvent = events[0] || null;
-  showToast(`${deletedName} deleted.`);
-});
-document.querySelector('[data-close-modal]').addEventListener('click', closeEventModal);
-eventModal.addEventListener('click', (event) => { if (event.target === eventModal) closeEventModal(); });
-statusButton.addEventListener('click', () => {
-  if (activeEvent.status === 'PORTFOLIO') return showToast('Choose Manage on a specific concert.');
-  activeEvent.status = activeEvent.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
-  saveEvents();
-  renderEvents();
-  openEventModal(activeEvent);
-  showToast(`${activeEvent.name} is now ${activeEvent.status}.`);
-});
-document.getElementById('checkInButton').addEventListener('click', () => {
-  closeEventModal();
-  document.getElementById('verify').scrollIntoView({ behavior: 'smooth' });
-  document.getElementById('ticketId').focus();
+  document.getElementById("verify").scrollIntoView({ behavior: "smooth" });
+  ticketInput.focus();
 });
 
-renderEvents();
+document.querySelector(".menu-btn")?.addEventListener("click", () => {
+  document.querySelector(".sidebar")?.classList.toggle("open");
+});
+
+document.addEventListener("DOMContentLoaded", async () => {
+  renderEvents();
+  if (!window.ethereum || sessionStorage.getItem("trustticket_wallet_disconnected")) return;
+  try {
+    const [selected] = await window.ethereum.request({ method: "eth_accounts" });
+    if (!selected) return;
+    if (!window.TrustTicketRoles?.isOrganizer(selected)) return;
+    account = selected;
+    updateWalletButton();
+    await ensureBotChain();
+    await loadDashboard();
+  } catch (error) {
+    showToast(errorMessage(error), true);
+  }
+});
+
+window.ethereum?.on("accountsChanged", () => window.location.reload());
+window.ethereum?.on("chainChanged", () => window.location.reload());

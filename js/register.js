@@ -1,40 +1,52 @@
-const connectButton = document.querySelector('#connect-organizer');
-const form = document.querySelector('#organizer-form');
-const walletField = document.querySelector('#organizer-wallet');
-const walletStatus = document.querySelector('#wallet-status');
-const result = document.querySelector('#registration-result');
+const connectButton = document.querySelector("#connect-organizer");
+const walletStatus = document.querySelector("#wallet-status");
 
-async function connectWallet() {
-  if (!window.ethereum) {
-    walletStatus.textContent = 'MetaMask is required to register an organizer wallet.';
-    return;
-  }
+async function ensureBotChain() {
+  const chainId = await window.ethereum.request({ method: "eth_chainId" });
+  if (chainId === "0x3c8") return;
+
   try {
-    const [account] = await window.ethereum.request({ method: 'eth_requestAccounts' });
-    if (!account) return;
-    if (window.TrustTicketRoles.isOrganizer(account)) {
-      window.location.assign('organizer.html');
-      return;
-    }
-    walletField.value = account;
-    walletStatus.textContent = `Connected: ${account.slice(0, 6)}...${account.slice(-4)}`;
-    connectButton.hidden = true;
-    form.hidden = false;
+    await window.ethereum.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: "0x3c8" }]
+    });
   } catch (error) {
-    walletStatus.textContent = error.message || 'Wallet connection was cancelled.';
+    if (error.code !== 4902) throw error;
+    await window.ethereum.request({
+      method: "wallet_addEthereumChain",
+      params: [{
+        chainId: "0x3c8",
+        chainName: "BOT Chain Testnet",
+        nativeCurrency: { name: "BOT", symbol: "BOT", decimals: 18 },
+        rpcUrls: ["https://rpc.bohr.life"],
+        blockExplorerUrls: ["https://scan.bohr.life/"]
+      }]
+    });
   }
 }
 
-connectButton.addEventListener('click', connectWallet);
-form.addEventListener('submit', (event) => {
-  event.preventDefault();
-  const request = Object.fromEntries(new FormData(form));
-  const requests = JSON.parse(localStorage.getItem('trustticket_organizer_requests') || '[]');
-  if (!requests.some((item) => item.wallet.toLowerCase() === request.wallet.toLowerCase())) {
-    requests.push({ ...request, status: 'PENDING', submittedAt: new Date().toISOString() });
-    localStorage.setItem('trustticket_organizer_requests', JSON.stringify(requests));
+async function openOrganizerPortal(requestAccess = false) {
+  if (!window.ethereum) {
+    walletStatus.textContent = "MetaMask is required to use the organizer portal.";
+    return;
   }
-  form.hidden = true;
-  result.hidden = false;
-  result.textContent = 'Registration submitted. An existing organizer must approve this wallet before it can access the organizer portal.';
+
+  try {
+    await ensureBotChain();
+    const method = requestAccess ? "eth_requestAccounts" : "eth_accounts";
+    const [account] = await window.ethereum.request({ method });
+    if (!account) return;
+    sessionStorage.removeItem("trustticket_wallet_disconnected");
+    walletStatus.textContent = `Connected: ${account.slice(0, 6)}...${account.slice(-4)}`;
+    window.location.replace("organizer.html");
+  } catch (error) {
+    walletStatus.textContent = error.message || "Wallet connection was cancelled.";
+  }
+}
+
+connectButton.addEventListener("click", () => openOrganizerPortal(true));
+window.ethereum?.on("accountsChanged", ([account]) => {
+  if (account) openOrganizerPortal(false);
 });
+
+openOrganizerPortal(false);

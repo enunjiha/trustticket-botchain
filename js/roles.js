@@ -1,12 +1,9 @@
 window.TrustTicketRoles = {
-  organizerAddresses: ["0x30d68cd5099A00C433Fa4715c17156Ff2ca87D96"],
-
   isOrganizer(address) {
-    return typeof address === "string" && this.organizerAddresses
-      .some((organizer) => organizer.toLowerCase() === address.toLowerCase());
+    return typeof address === "string" && /^0x[a-fA-F0-9]{40}$/.test(address);
   },
 
-  destinationFor(address) {
-    return this.isOrganizer(address) ? "organizer.html" : "index.html";
+  destinationFor() {
+    return "organizer.html";
   }
 };

@@ -2,6 +2,7 @@ window.TrustTicketContract = {
     address: "0x405F33dFF4708F57905e59ce4Fa8ffd47daD5566",
     rpcUrl: "https://rpc.bohr.life",
     chainId: 968,
+    deploymentBlock: 18005127,
 
     configured() {
         return !!this.address;
@@ -25,9 +26,13 @@ window.TrustTicketContract = {
     },
 
     abi: [
+        "event TicketPurchased(uint256 ticketId,uint256 concertId,address buyer,uint256 purchaseTime)",
         "function getTotalConcerts() view returns (uint256)",
         "function getConcert(uint256) view returns ((uint256 id,address organizer,string name,string venue,uint256 date,uint256 price,uint256 totalTickets,uint256 ticketsSold,bool active))",
+        "function createConcert(string,string,uint256,uint256,uint256)",
         "function buyTicket(uint256) payable",
+        "function tickets(uint256) view returns (uint256 concertId,bool used,uint256 purchaseTime)",
+        "function ownerOf(uint256) view returns (address)",
         "function verifyTicket(uint256) view returns (bool)",
         "function checkIn(uint256)",
         "function updateConcertStatus(uint256,bool)"
@@ -86,9 +91,73 @@ window.TrustTicketContract = {
             value: concert.priceWei
         });
 
-        await tx.wait();
+        const receipt = await tx.wait();
+        const purchased = receipt.logs
+            .map((log) => {
+                try {
+                    return contract.interface.parseLog(log);
+                } catch {
+                    return null;
+                }
+            })
+            .find((log) => log?.name === "TicketPurchased");
 
+        if (!purchased) {
+            throw new Error("Ticket purchase succeeded, but its ticket ID was not found.");
+        }
+
+        return {
+            tx,
+            receipt,
+            ticketId: Number(purchased.args.ticketId)
+        };
+    },
+
+    async createConcert(name, venue, date, price, totalTickets) {
+        const contract = await this.writeContract();
+        const tx = await contract.createConcert(
+            name,
+            venue,
+            date,
+            ethers.parseEther(String(price)),
+            totalTickets
+        );
+        await tx.wait();
         return tx;
+    },
+
+    async getTicket(ticketId) {
+        const contract = await this.readContract();
+        const ticket = await contract.tickets(ticketId);
+        const owner = await contract.ownerOf(ticketId);
+
+        return {
+            ticketId: Number(ticketId),
+            concertId: Number(ticket.concertId),
+            used: ticket.used,
+            purchaseTime: Number(ticket.purchaseTime),
+            owner
+        };
+    },
+
+    async getPurchasedTickets() {
+        const contract = await this.readContract();
+        const latestBlock = await contract.runner.provider.getBlockNumber();
+        const logs = [];
+
+        for (let fromBlock = this.deploymentBlock; fromBlock <= latestBlock; fromBlock += 5000) {
+            const toBlock = Math.min(fromBlock + 4999, latestBlock);
+            logs.push(...await contract.queryFilter(
+                contract.filters.TicketPurchased(),
+                fromBlock,
+                toBlock
+            ));
+        }
+
+        return Promise.all(logs.map(async (log) => ({
+            ...await this.getTicket(log.args.ticketId),
+            buyer: log.args.buyer
+        })));
     },
 
     async verifyTicket(ticketId) {
@@ -106,6 +175,13 @@ window.TrustTicketContract = {
 
         await tx.wait();
 
+        return tx;
+    },
+
+    async updateConcertStatus(concertId, active) {
+        const contract = await this.writeContract();
+        const tx = await contract.updateConcertStatus(concertId, active);
+        await tx.wait();
         return tx;
     }
 };

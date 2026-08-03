@@ -26,7 +26,7 @@ The customer page shows only active upcoming concerts. The remaining ticket coun
 4. Confirm the concert creation transaction in MetaMask.
 5. View concerts created by that wallet and monitor ticket sales.
 6. Activate or deactivate a concert created by that wallet.
-7. Edit an owned concert's information or delete the event when needed.
+7. Edit an owned concert before it starts, or delete it while no tickets have been sold.
 8. Scan the customer's live QR code or upload a saved QR image.
 9. If the QR cannot be detected, enter the numeric ticket ID shown on the customer's ticket.
 10. Verify the ticket, then confirm the check-in transaction in MetaMask.
@@ -35,7 +35,7 @@ Only the wallet that created a concert can change its status or check in tickets
 
 When an organizer deactivates a concert, the concert is not shown anywhere on the customer page and the smart contract rejects new ticket purchases for it. When the organizer activates it again, the concert appears on the customer page and customers can buy its tickets, provided the concert has not ended and tickets remain available.
 
-Organizers can edit or delete only the concerts that belong to their connected wallet. Deleting an event removes it from the organizer and customer event views.
+Organizers can edit or delete only the concerts that belong to their connected wallet. An owned concert can be edited only before its scheduled start. Editing is still allowed after ticket sales, but the total ticket supply cannot be reduced below the number of tickets already sold. An owned concert can be deleted only when zero tickets have been sold; if no tickets were sold, it may still be deleted after its scheduled start. Deleting an event removes it from the organizer and customer event views.
 
 ## Concert Management
 
@@ -43,8 +43,8 @@ From the organizer dashboard, an organizer can manage concerts created by the co
 
 - **Activate:** Make the concert visible to customers and allow ticket purchases.
 - **Deactivate:** Hide the concert from customers and stop new ticket purchases.
-- **Edit:** Update the concert name, date, venue, ticket price, or ticket supply.
-- **Delete:** Remove the event from both the organizer dashboard and customer event list.
+- **Edit:** Before the concert starts, update its name, date, venue, ticket price, or ticket supply. If tickets have already been sold, the new supply cannot be lower than the number sold.
+- **Delete:** Remove the event from both the organizer dashboard and customer event list only when zero tickets have been sold. A zero-sale event may be deleted even after it has started.
 
 The organizer dashboard shows only concerts created by the connected organizer wallet. Concerts created by another wallet do not appear in that organizer's concert list and cannot be edited, deleted, activated, deactivated, or used for ticket check-in. After a management action is confirmed, refresh the relevant page to display the latest event information.
 
@@ -52,7 +52,7 @@ The organizer dashboard shows only concerts created by the connected organizer w
 
 - From the customer page, select **Organizer Portal** to open the organizer dashboard.
 - From the organizer dashboard, select **Customer site** to return to the main customer page.
-- On the customer page, select **Discover** to browse the active upcoming concerts.
+- On the customer page, select **Tickets** to browse the active upcoming concerts.
 
 The same MetaMask wallet can move between both portals, but organizer management permissions are always limited to concerts created by that wallet.
 
@@ -89,7 +89,7 @@ Tickets must be checked in only on the scheduled date of the concert. The curren
 
 ## Refreshing Blockchain Data
 
-BOT Chain data changes after a transaction is confirmed. Refresh the relevant page after an action to load the latest blockchain state. This includes:
+BOT Chain data changes after a transaction is confirmed. Refresh the relevant page after an action to load the latest blockchain state if the data not changes. This includes:
 
 - A newly created concert
 - A ticket purchase and updated remaining supply

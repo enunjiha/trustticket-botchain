@@ -15,6 +15,8 @@ const attendeeSearch = document.getElementById("attendeeSearch");
 const attendeeList = document.getElementById("attendeeList");
 const verifyResult = document.getElementById("verifyResult");
 const ticketInput = document.getElementById("ticketId");
+const sidebar = document.querySelector(".sidebar");
+const sidebarScrim = document.querySelector(".sidebar-scrim");
 
 let account = null;
 let events = [];
@@ -22,6 +24,34 @@ let tickets = [];
 let activeEvent = null;
 let activeAttendees = [];
 let qrScanner = null;
+
+const organizerSectionLinks = [...document.querySelectorAll('.sidebar nav a[href^="#"]')]
+  .filter((link) => link.getAttribute("href") !== "#top");
+
+function closeOrganizerNavigation() {
+  sidebar?.classList.remove("open");
+  sidebarScrim?.classList.remove("open");
+  document.querySelector(".menu-btn")?.setAttribute("aria-expanded", "false");
+}
+
+function updateActiveOrganizerSection(requestedHash = window.location.hash || "#dashboard") {
+  const activeHash = organizerSectionLinks.some((link) => link.getAttribute("href") === requestedHash)
+    ? requestedHash
+    : "#dashboard";
+
+  organizerSectionLinks.forEach((link) => {
+    link.classList.toggle("active", link.getAttribute("href") === activeHash);
+  });
+}
+
+organizerSectionLinks.forEach((link) => {
+  link.addEventListener("click", () => {
+    updateActiveOrganizerSection(link.getAttribute("href"));
+    closeOrganizerNavigation();
+  });
+});
+
+window.addEventListener("hashchange", () => updateActiveOrganizerSection());
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (character) => ({
@@ -726,10 +756,14 @@ document.getElementById("checkInButton").addEventListener("click", () => {
 });
 
 document.querySelector(".menu-btn")?.addEventListener("click", () => {
-  document.querySelector(".sidebar")?.classList.toggle("open");
+  const isOpen = sidebar?.classList.toggle("open") ?? false;
+  sidebarScrim?.classList.toggle("open", isOpen);
+  document.querySelector(".menu-btn")?.setAttribute("aria-expanded", String(isOpen));
 });
+sidebarScrim?.addEventListener("click", closeOrganizerNavigation);
 
 document.addEventListener("DOMContentLoaded", async () => {
+  updateActiveOrganizerSection();
   renderEvents();
   if (!window.ethereum || sessionStorage.getItem("trustticket_wallet_disconnected")) return;
   try {

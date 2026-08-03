@@ -1,7 +1,26 @@
+const QR_CHECK_IN_OPENING_LEAD_MS = 60 * 60 * 1000;
+const QR_CHECK_IN_WINDOW_AFTER_START_MS = 24 * 60 * 60 * 1000;
+
+function qrCheckInWindowStatus(ticket, now = Date.now()) {
+  if (ticket.used) return "USED";
+  const concertStart = Number(ticket.eventTimestamp) * 1000;
+  if (now < concertStart - QR_CHECK_IN_OPENING_LEAD_MS) return "UPCOMING";
+  if (now >= concertStart + QR_CHECK_IN_WINDOW_AFTER_START_MS) return "EXPIRED";
+  return "VALID";
+}
+
 window.TrustQR = {
   open(ticket) {
-    if (typeof ticketStatus === "function" && ticketStatus(ticket) !== "VALID") {
-      showToast("This ticket can only be used from the concert start time until the end of that day.", true);
+    const status = qrCheckInWindowStatus(ticket);
+    if (status !== "VALID") {
+      showToast(
+        status === "USED"
+          ? "This ticket has already been checked in."
+          : status === "EXPIRED"
+            ? "This ticket's check-in window closed 24 hours after the concert started."
+            : "This QR becomes available one hour before the concert starts.",
+        true
+      );
       return;
     }
 

@@ -62,9 +62,10 @@ Each successful purchase mints a unique NFT ticket to the customer's connected w
 
 A ticket can have one of these states:
 
-- `VALID`: The ticket is ready to be presented and its QR code is available.
+- `UPCOMING`: Check-in has not opened yet. The QR code becomes available one hour before the concert starts.
+- `VALID`: Check-in is open and the QR code is available. The window remains open until 24 hours after the concert starts.
 - `USED`: The organizer has completed check-in. The customer can no longer open or display the QR code.
-- `EXPIRED`: The concert date has passed. The QR code is no longer available.
+- `EXPIRED`: The ticket was not checked in before the window closed 24 hours after the concert started. Its QR code is no longer available.
 
 After a successful check-in, refresh **My Tickets** to load the latest `USED` status from BOT Chain. The used ticket remains visible in ticket history as proof of ownership, but it cannot be used or checked in again.
 
@@ -85,7 +86,9 @@ During a ticket purchase, the customer pays the ticket price plus a network gas 
 
 ## Check-In Rule
 
-Tickets must be checked in only on the scheduled date of the concert. The current deployed smart contract prevents duplicate check-in and restricts check-in to the concert organizer, but it does not automatically enforce the concert date. For this version, the organizer is responsible for following the date rule and rejecting check-in attempts outside the scheduled date.
+Check-in opens one hour before the concert start time. From that point, the customer's QR code is available and the organizer can verify and check in the ticket. The window closes exactly 24 hours after the concert starts. An unused ticket becomes `EXPIRED` at that time and can no longer be checked in. Once checked in, it becomes `USED` and cannot be used again.
+
+This time window is enforced by the frontend only. The deployed smart contract still enforces organizer ownership and one-time ticket use, but it does not enforce the concert time. Anyone interacting directly with the contract could bypass the frontend time check.
 
 ## Refreshing Blockchain Data
 

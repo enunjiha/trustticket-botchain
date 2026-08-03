@@ -271,6 +271,8 @@ function attendeesFor(concert) {
 
 function renderAttendees(query = "") {
   const term = query.trim().toLowerCase();
+  const checkInStatus = activeEvent ? checkInWindowStatus(activeEvent) : "VALID";
+  const checkInIsOpen = checkInStatus === "VALID";
   const filtered = activeAttendees.filter((ticket) =>
     String(ticket.ticketId).includes(term) ||
     ticket.owner.toLowerCase().includes(term)
@@ -291,8 +293,8 @@ function renderAttendees(query = "") {
     row.innerHTML = `
       <div><span>Ticket</span><strong>#${ticket.ticketId}</strong></div>
       <div class="attendee-owner"><span>Wallet</span><strong title="${ticket.owner}">${shortWallet(ticket.owner)}</strong></div>
-      <button class="checkin-small${ticket.used ? " used" : ""}" type="button" ${ticket.used ? "disabled" : ""}>
-        ${ticket.used ? "Checked in" : "Check in"}
+      <button class="checkin-small${ticket.used ? " used" : ""}" type="button" ${ticket.used || !checkInIsOpen ? "disabled" : ""}
+        ${ticket.used ? "Checked in" : checkInIsOpen ? "Check in" : checkInStatus === "EXPIRED" ? "Window closed" : "Opens 1 hour before"}
       </button>`;
     row.querySelector("button").addEventListener("click", () => checkInTicket(ticket.ticketId));
     attendeeList.appendChild(row);
@@ -352,6 +354,13 @@ async function checkInTicket(ticketId) {
       throw new Error("This ticket belongs to another organizer's concert.");
     }
     if (ticket.used) throw new Error("This ticket has already been checked in.");
+    const checkInStatus = checkInWindowStatus(concert);
+    if (checkInStatus === "UPCOMING") {
+      throw new Error("Check-in opens one hour before the concert starts.");
+    }
+    if (checkInStatus === "EXPIRED") {
+      throw new Error("Check-in closed 24 hours after the concert started.");
+    }
 
     showToast("Confirm the check-in transaction in MetaMask.");
     await TrustTicketContract.checkIn(ticketId);
@@ -383,6 +392,16 @@ function parsedTicketId(rawValue) {
   }
 }
 
+const CHECK_IN_OPENING_LEAD_SECONDS = 60 * 60;
+const CHECK_IN_WINDOW_AFTER_START_SECONDS = 24 * 60 * 60;
+
+function checkInWindowStatus(concert, nowSeconds = Math.floor(Date.now() / 1000)) {
+  const concertStart = Number(concert.date);
+  if (nowSeconds < concertStart - CHECK_IN_OPENING_LEAD_SECONDS) return "UPCOMING";
+  if (nowSeconds >= concertStart + CHECK_IN_WINDOW_AFTER_START_SECONDS) return "EXPIRED";
+  return "VALID";
+}
+
 async function verifyTicket() {
   const ticketId = parsedTicketId(ticketInput.value);
   verifyResult.replaceChildren();
@@ -406,6 +425,17 @@ async function verifyTicket() {
     if (!valid || ticket.used) {
       verifyResult.className = "verify-result used";
       verifyResult.textContent = `USED · TICKET #${ticketId}`;
+      return;
+    }
+    const checkInStatus = checkInWindowStatus(concert);
+    if (checkInStatus === "UPCOMING") {
+      verifyResult.className = "verify-result used";
+      verifyResult.textContent = `TOO EARLY · CHECK-IN OPENS ONE HOUR BEFORE ${escapeHtml(concert.name)}`;
+      return;
+    }
+    if (checkInStatus === "EXPIRED") {
+      verifyResult.className = "verify-result used";
+      verifyResult.textContent = `EXPIRED · CHECK-IN CLOSED 24 HOURS AFTER ${escapeHtml(concert.name)} STARTED`;
       return;
     }
 

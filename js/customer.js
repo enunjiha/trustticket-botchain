@@ -278,16 +278,19 @@ async function buyTicket(c) {
 
 }
 
+const CHECK_IN_OPENING_LEAD_MS = 60 * 60 * 1000;
+const CHECK_IN_WINDOW_AFTER_START_MS = 24 * 60 * 60 * 1000;
+
+function ticketCheckInWindow(ticket, now = Date.now()) {
+    const concertStart = Number(ticket.eventTimestamp) * 1000;
+    if (now < concertStart - CHECK_IN_OPENING_LEAD_MS) return "UPCOMING";
+    if (now >= concertStart + CHECK_IN_WINDOW_AFTER_START_MS) return "EXPIRED";
+    return "VALID";
+}
+
 function ticketStatus(ticket, now = new Date()){
     if (ticket.used) return "USED";
-
-    const eventTime = new Date(ticket.eventTimestamp * 1000);
-    if (now < eventTime) return "UPCOMING";
-
-    const endOfEventDay = new Date(eventTime);
-    endOfEventDay.setHours(23, 59, 59, 999);
-
-    return now <= endOfEventDay ? "VALID" : "EXPIRED";
+    return ticketCheckInWindow(ticket, now.getTime());
 }
 
 function ticketMarkup(ticket, index) {
@@ -338,8 +341,8 @@ function ticketMarkup(ticket, index) {
                         `
                         : `
                         <p class="ticket-closed">
-                            <i data-lucide="${status === "USED" ? "circle-check" : status === "UPCOMING" ? "clock" : "calendar-x"}" size="17"></i>
-                            ${status === "USED" ? "Already checked in" : status === "UPCOMING" ? "QR available at concert time" : "Event check-in has ended"}
+                            <i data-lucide="${status === "USED" ? "circle-check" : status === "EXPIRED" ? "calendar-x" : "clock"}" size="17"></i>
+                            ${status === "USED" ? "Already checked in" : status === "EXPIRED" ? "Check-in window has closed" : "QR becomes available one hour before concert start"}
                         </p>
                         `
                 }
@@ -510,8 +513,14 @@ async function renderTickets() {
 
         button.onclick = () => {
             const ticket = tickets[Number(button.dataset.qr)];
-            if (ticketStatus(ticket) !== "VALID") {
-                showToast("This ticket can only be used from the concert start time until the end of that day.", true);
+            const status = ticketStatus(ticket);
+            if (status !== "VALID") {
+                showToast(
+                    status === "EXPIRED"
+                        ? "This ticket's check-in window closed 24 hours after the concert started."
+                        : "This QR becomes available one hour before the concert starts.",
+                    true
+                );
                 renderTickets();
                 return;
             }

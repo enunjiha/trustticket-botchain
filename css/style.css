@@ -49,15 +49,16 @@ html,body{max-width:100%;overflow-x:hidden}
 }
 
 #qr-code {
-  width: 288px;
-  height: 288px;
+  width: 352px;
+  height: 352px;
+  padding: 32px;
   max-width: 100%;
 }
 
 #qr-code img,
 #qr-code canvas {
-  width: 256px !important;
-  height: 256px !important;
+  width: 288px !important;
+  height: 288px !important;
   max-width: 100%;
 }
 @media(max-width:480px){

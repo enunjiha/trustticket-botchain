@@ -389,21 +389,45 @@ const scannerPanel = document.getElementById("scanner");
 const scanStatus = document.getElementById("scanStatus");
 let scanHintTimer = null;
 async function stopCamera() {
-  if (qrScanner?.isScanning) await qrScanner.stop();
+  if (qrScanner?.isScanning) {
+    try {
+      await qrScanner.stop();
+    } catch (error) {
+      console.warn("Unable to stop QR camera cleanly:", error);
+    }
+  }
   clearTimeout(scanHintTimer);
   scannerPanel.classList.remove("open");
+}
+
+function cameraErrorMessage(error) {
+  const message = errorMessage(error);
+  if (!window.isSecureContext) {
+    return "Camera access requires HTTPS. Open this site using an https:// address.";
+  }
+  if (!navigator.mediaDevices?.getUserMedia) {
+    return "This browser does not support camera access. Try Chrome or Safari.";
+  }
+  if (/denied|permission|notallowed/i.test(message)) {
+    return "Camera permission was denied. Allow camera access in browser settings, then try again.";
+  }
+  if (/notfound|no camera|devicesnotfound/i.test(message)) {
+    return "No usable camera was found on this device.";
+  }
+  if (/notreadable|could not start|trackstart/i.test(message)) {
+    return "The camera is being used by another app. Close it and try again.";
+  }
+  return message || "Camera could not start.";
 }
 
 document.getElementById("startScanner").addEventListener("click", async () => {
   if (!window.Html5Qrcode) return showToast("QR scanner failed to load.", true);
   try {
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+      throw new Error("Camera access requires HTTPS and a supported browser.");
+    }
     scannerPanel.classList.add("open");
     scanStatus.textContent = "Requesting camera access...";
-    const cameras = await Html5Qrcode.getCameras();
-    if (!cameras.length) throw new Error("No camera was found on this device.");
-    const selectedCamera =
-      cameras.find((camera) => /back|rear|environment/i.test(camera.label)) ||
-      cameras[0];
 
     if (qrScanner) {
       try {
@@ -417,31 +441,48 @@ document.getElementById("startScanner").addEventListener("click", async () => {
       experimentalFeatures: { useBarCodeDetectorIfSupported: true },
       verbose: false
     });
-    await qrScanner.start(
-      selectedCamera.id,
-      {
-        fps: 15,
-        aspectRatio: 1,
-        disableFlip: false,
-        qrbox: (width, height) => {
-          const size = Math.floor(Math.min(width, height) * 0.78);
-          return { width: size, height: size };
-        }
-      },
-      async (decodedText) => {
-        scanStatus.textContent = "QR detected. Verifying ticket...";
-        ticketInput.value = parsedTicketId(decodedText) || decodedText;
-        await stopCamera();
-        await verifyTicket();
-      },
-      () => {}
-    );
+    const scanConfig = {
+      fps: 12,
+      aspectRatio: 1,
+      disableFlip: false,
+      qrbox: (width, height) => {
+        const size = Math.floor(Math.min(width, height) * 0.9);
+        return { width: size, height: size };
+      }
+    };
+    const onScanSuccess = async (decodedText) => {
+      scanStatus.textContent = "QR detected. Verifying ticket...";
+      ticketInput.value = parsedTicketId(decodedText) || decodedText;
+      await stopCamera();
+      await verifyTicket();
+    };
+
+    try {
+      await qrScanner.start(
+        { facingMode: "environment" },
+        scanConfig,
+        onScanSuccess,
+        () => {}
+      );
+    } catch (preferredCameraError) {
+      const cameras = await Html5Qrcode.getCameras();
+      if (!cameras.length) throw preferredCameraError;
+      const selectedCamera =
+        cameras.find((camera) => /back|rear|environment/i.test(camera.label)) ||
+        cameras[0];
+      await qrScanner.start(
+        selectedCamera.id,
+        scanConfig,
+        onScanSuccess,
+        () => {}
+      );
+    }
     scanStatus.textContent = "Looking for a QR code...";
     scanHintTimer = setTimeout(() => {
       scanStatus.textContent = "Keep the full QR inside the frame, hold steady, and reduce screen glare.";
     }, 7000);
   } catch (error) {
-    const message = errorMessage(error) || "Camera could not start.";
+    const message = cameraErrorMessage(error);
     scannerPanel.classList.add("open");
     scanStatus.textContent = `Camera error: ${message}`;
     showToast(message, true);

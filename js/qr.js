@@ -11,11 +11,11 @@ window.TrustQR = {
 
     new QRCode(box, {
       text: `trustticket:${ticket.ticketId}`,
-      width: 256,
-      height: 256,
+      width: 288,
+      height: 288,
       colorDark: "#070908",
       colorLight: "#ffffff",
-      correctLevel: QRCode.CorrectLevel.M
+      correctLevel: QRCode.CorrectLevel.H
     });
 
     document.querySelector("#qr-title").textContent = ticket.concert;

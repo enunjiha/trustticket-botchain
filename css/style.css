@@ -77,6 +77,7 @@ html,body{max-width:100%;overflow-x:hidden}
 .ticket-expired .ticket-stub{background:#4b4f4c;color:var(--ink)}
 .ticket-status{font-weight:800}
 .status-valid{color:var(--green)}
+.status-upcoming{color:var(--amber)}
 .status-used{color:#aab8b0}
 .status-expired{color:var(--amber)}
 .ticket-closed{min-height:44px;margin:0;display:flex;align-items:center;gap:9px;color:var(--muted);font-weight:700}

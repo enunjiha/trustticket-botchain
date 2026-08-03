@@ -1,5 +1,10 @@
 window.TrustQR = {
   open(ticket) {
+    if (typeof ticketStatus === "function" && ticketStatus(ticket) !== "VALID") {
+      showToast("This ticket can only be used from the concert start time until the end of that day.", true);
+      return;
+    }
+
     const modal = document.querySelector("#qr-modal");
     const box = document.querySelector("#qr-code");
     box.innerHTML = "";

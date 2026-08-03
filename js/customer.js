@@ -260,10 +260,16 @@ async function buyTicket(c) {
 
 }
 
-function ticketStatus(ticket){
+function ticketStatus(ticket, now = new Date()){
     if (ticket.used) return "USED";
-    if (ticket.eventTimestamp * 1000 <= Date.now()) return "EXPIRED";
-    return "VALID";
+
+    const eventTime = new Date(ticket.eventTimestamp * 1000);
+    if (now < eventTime) return "UPCOMING";
+
+    const endOfEventDay = new Date(eventTime);
+    endOfEventDay.setHours(23, 59, 59, 999);
+
+    return now <= endOfEventDay ? "VALID" : "EXPIRED";
 }
 
 function ticketMarkup(ticket, index) {
@@ -314,8 +320,8 @@ function ticketMarkup(ticket, index) {
                         `
                         : `
                         <p class="ticket-closed">
-                            <i data-lucide="${status === "USED" ? "circle-check" : "calendar-x"}" size="17"></i>
-                            ${status === "USED" ? "Already checked in" : "Event has ended"}
+                            <i data-lucide="${status === "USED" ? "circle-check" : status === "UPCOMING" ? "clock" : "calendar-x"}" size="17"></i>
+                            ${status === "USED" ? "Already checked in" : status === "UPCOMING" ? "QR available at concert time" : "Event check-in has ended"}
                         </p>
                         `
                 }
@@ -460,18 +466,18 @@ async function renderTickets() {
         return;
     }
 
-    const active = tickets.filter(
-        ticket => ticketStatus(ticket) === "VALID"
+    const active = tickets.filter(ticket =>
+        ["UPCOMING", "VALID"].includes(ticketStatus(ticket))
     );
 
-    const history = tickets.filter(
-        ticket => ticketStatus(ticket) !== "VALID"
+    const history = tickets.filter(ticket =>
+        ["USED", "EXPIRED"].includes(ticketStatus(ticket))
     );
 
     root.innerHTML =
         renderTicketSection(
             "Active Tickets",
-            "Ready for entry",
+            "Upcoming and ready for entry",
             active,
             tickets
         ) +
@@ -485,9 +491,13 @@ async function renderTickets() {
     root.querySelectorAll("[data-qr]").forEach(button => {
 
         button.onclick = () => {
-            TrustQR.open(
-                tickets[Number(button.dataset.qr)]
-            );
+            const ticket = tickets[Number(button.dataset.qr)];
+            if (ticketStatus(ticket) !== "VALID") {
+                showToast("This ticket can only be used from the concert start time until the end of that day.", true);
+                renderTickets();
+                return;
+            }
+            TrustQR.open(ticket);
         };
 
     });

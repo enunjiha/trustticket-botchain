@@ -35,10 +35,10 @@ function escapeHtml(value) {
 
 function showToast(message, error = false) {
   toast.textContent = message;
-  toast.className = `show${error ? " error" : ""}`;
+  toast.className = `toast show${error ? " error" : ""}`;
   clearTimeout(toast._timer);
   toast._timer = setTimeout(() => {
-    toast.className = "";
+    toast.className = "toast";
   }, 4000);
 }
 

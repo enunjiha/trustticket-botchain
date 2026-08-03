@@ -1,5 +1,5 @@
 window.TrustTicketContract = {
-    address: "0x405F33dFF4708F57905e59ce4Fa8ffd47daD5566",
+    address: "0xC1D0A74e2FC13814d8C0cbA8c1D523b9a305BD77",
     rpcUrl: "https://rpc.bohr.life",
     chainId: 968,
     deploymentBlock: 18005127,
@@ -27,6 +27,8 @@ window.TrustTicketContract = {
 
     abi: [
         "event TicketPurchased(uint256 ticketId,uint256 concertId,address buyer,uint256 purchaseTime)",
+        "event ConcertUpdated(uint256 concertId)",
+        "event ConcertDeleted(uint256 concertId)",
         "function getTotalConcerts() view returns (uint256)",
         "function getConcert(uint256) view returns ((uint256 id,address organizer,string name,string venue,uint256 date,uint256 price,uint256 totalTickets,uint256 ticketsSold,bool active))",
         "function createConcert(string,string,uint256,uint256,uint256)",

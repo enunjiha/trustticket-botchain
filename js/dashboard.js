@@ -5,6 +5,9 @@ const eventModal = document.getElementById("eventModal");
 const modalTitle = document.getElementById("modalTitle");
 const modalDetails = document.getElementById("modalDetails");
 const statusButton = document.getElementById("statusButton");
+const editEventButton = document.getElementById("editEventButton");
+const deleteEventButton = document.getElementById("deleteEventButton");
+const editEventForm = document.getElementById("editEventForm");
 const eventInsights = document.getElementById("eventInsights");
 const insightGrid = document.getElementById("insightGrid");
 const attendeeCount = document.getElementById("attendeeCount");
@@ -126,12 +129,23 @@ function displayDate(timestamp) {
   return new Intl.DateTimeFormat("en-MY", {
     day: "2-digit",
     month: "short",
-    year: "numeric"
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
   }).format(new Date(timestamp * 1000)).toUpperCase();
 }
 
 function dateInputValue(timestamp) {
-  return new Date(timestamp * 1000).toISOString().slice(0, 10);
+  const date = new Date(timestamp * 1000);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function timeInputValue(timestamp) {
+  const date = new Date(timestamp * 1000);
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
 async function loadDashboard() {
@@ -146,7 +160,7 @@ async function loadDashboard() {
   );
 
   events = allConcerts
-    .filter((concert) => sameAddress(concert.organizer, account))
+    .filter((concert) => sameAddress(concert.organizer, account) && concert.name.trim())
     .map((concert) => ({
       ...concert,
       sold: concert.ticketsSold,
@@ -271,9 +285,16 @@ function openEventModal(concert) {
     <div><span>Tickets sold</span><strong>${concert.ticketsSold} / ${concert.totalTickets}</strong></div>
     <div><span>Status</span><strong>${concert.status}</strong></div>`;
   statusButton.textContent = concert.active ? "Deactivate event" : "Activate event";
-  document.getElementById("editEventButton").hidden = true;
-  document.getElementById("deleteEventButton").hidden = true;
+  editEventForm.hidden = true;
+  editEventButton.hidden = false;
+  deleteEventButton.hidden = false;
+  editEventButton.disabled = concert.ticketsSold > 0;
+  deleteEventButton.disabled = concert.ticketsSold > 0;
+  const lockedMessage = concert.ticketsSold > 0 ? "Unavailable after ticket sales" : "";
+  editEventButton.title = lockedMessage;
+  deleteEventButton.title = lockedMessage;
   eventInsights.hidden = false;
+  document.querySelector(".modal-actions").hidden = false;
   renderEventInsights(concert);
   eventModal.classList.add("open");
 }
@@ -489,9 +510,13 @@ document.getElementById("concertForm").addEventListener("submit", async (event) 
   try {
     if (!account) await connectWallet();
     const data = new FormData(event.currentTarget);
-    const timestamp = Math.floor(new Date(`${data.get("date")}T20:00:00`).getTime() / 1000);
+    const eventDateTime = new Date(`${data.get("date")}T${data.get("time")}:00`);
+    const timestamp = Math.floor(eventDateTime.getTime() / 1000);
+    if (Number.isNaN(timestamp)) {
+      throw new Error("Enter a valid concert date and time.");
+    }
     if (timestamp <= Math.floor(Date.now() / 1000)) {
-      throw new Error("Concert date must be in the future.");
+      throw new Error("Concert date and time must be in the future.");
     }
 
     button.disabled = true;
@@ -529,6 +554,77 @@ statusButton.addEventListener("click", async () => {
     showToast(errorMessage(error), true);
   } finally {
     statusButton.disabled = false;
+  }
+});
+
+editEventButton.addEventListener("click", () => {
+  if (!activeEvent || activeEvent.ticketsSold > 0) return;
+  document.getElementById("editEventName").value = activeEvent.name;
+  document.getElementById("editEventDate").value = dateInputValue(activeEvent.date);
+  document.getElementById("editEventTime").value = timeInputValue(activeEvent.date);
+  document.getElementById("editEventVenue").value = activeEvent.venue;
+  document.getElementById("editEventPrice").value = activeEvent.price;
+  document.getElementById("editEventSupply").value = activeEvent.totalTickets;
+  eventInsights.hidden = true;
+  document.querySelector(".modal-actions").hidden = true;
+  editEventForm.hidden = false;
+});
+
+document.getElementById("cancelEditEvent").addEventListener("click", () => {
+  if (activeEvent) openEventModal(activeEvent);
+});
+
+editEventForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!activeEvent) return;
+  const button = event.currentTarget.querySelector('button[type="submit"]');
+  try {
+    const data = new FormData(event.currentTarget);
+    const eventDateTime = new Date(`${data.get("date")}T${data.get("time")}:00`);
+    const timestamp = Math.floor(eventDateTime.getTime() / 1000);
+    if (Number.isNaN(timestamp)) throw new Error("Enter a valid concert date and time.");
+    if (timestamp <= Math.floor(Date.now() / 1000)) {
+      throw new Error("Concert date and time must be in the future.");
+    }
+
+    button.disabled = true;
+    showToast("Confirm the event update in MetaMask.");
+    const eventId = activeEvent.id;
+    await TrustTicketContract.updateConcert(
+      eventId,
+      data.get("name").trim(),
+      data.get("venue").trim(),
+      timestamp,
+      data.get("price"),
+      Number(data.get("supply"))
+    );
+    await loadDashboard();
+    const refreshed = events.find((concert) => concert.id === eventId);
+    if (refreshed) openEventModal(refreshed);
+    showToast("Concert updated on BOTChain.");
+  } catch (error) {
+    showToast(errorMessage(error), true);
+  } finally {
+    button.disabled = false;
+  }
+});
+
+deleteEventButton.addEventListener("click", async () => {
+  if (!activeEvent || activeEvent.ticketsSold > 0) return;
+  const eventId = activeEvent.id;
+  if (!window.confirm(`Delete ${activeEvent.name}? This cannot be undone.`)) return;
+  try {
+    deleteEventButton.disabled = true;
+    showToast("Confirm event deletion in MetaMask.");
+    await TrustTicketContract.deleteConcert(eventId);
+    closeEventModal();
+    activeEvent = null;
+    await loadDashboard();
+    showToast("Concert deleted from BOTChain.");
+  } catch (error) {
+    showToast(errorMessage(error), true);
+  } finally {
+    deleteEventButton.disabled = false;
   }
 });
 

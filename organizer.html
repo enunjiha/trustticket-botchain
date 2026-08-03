@@ -112,19 +112,30 @@
                   </label>
 
                   <label class="form-group">
-                      <span>TICKET PRICE (BOT)</span>
+                      <span>TIME</span>
                       <input
-                          id="concertPrice"
-                          name="price"
-                          type="number"
-                      min="0.001"
-                          step="0.01"
-                          placeholder="0.10"
+                          id="concertTime"
+                          name="time"
+                          type="time"
+                          value="20:00"
                           required
                       >
                   </label>
 
               </div>
+
+              <label class="form-group">
+                  <span>TICKET PRICE (BOT)</span>
+                  <input
+                      id="concertPrice"
+                      name="price"
+                      type="number"
+                      min="0.001"
+                      step="0.01"
+                      placeholder="0.10"
+                      required
+                  >
+              </label>
 
               <label class="form-group">
                   <span>VENUE</span>
@@ -207,6 +218,10 @@
               <span>DATE</span>
               <input id="editEventDate" name="date" type="date" required />
             </label>
+            <label class="form-group">
+              <span>TIME</span>
+              <input id="editEventTime" name="time" type="time" required />
+            </label>
           </div>
           <label class="form-group">
             <span>VENUE</span>
@@ -229,9 +244,9 @@
         </form>
         <div class="modal-actions">
           <button class="button primary" id="statusButton" type="button">Deactivate event</button>
-          <button class="button outline" id="editEventButton" type="button" hidden style="display:none">Update event</button>
+          <button class="button outline" id="editEventButton" type="button">Edit event</button>
           <button class="button outline" id="checkInButton" type="button">Check in a ticket</button>
-          <button class="button danger" id="deleteEventButton" type="button" hidden style="display:none">Delete event</button>
+          <button class="button danger" id="deleteEventButton" type="button">Delete event</button>
         </div>
       </div>
     </div>
@@ -239,7 +254,7 @@
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script src="js/vendor/ethers.min.js?v=4"></script>
     <script src="js/roles.js?v=4"></script>
-    <script src="js/contract.js?v=4"></script>
-    <script src="js/dashboard.js?v=8"></script>
+    <script src="js/contract.js?v=5"></script>
+    <script src="js/dashboard.js?v=10"></script>
   </body>
 </html>

@@ -33,6 +33,7 @@ contract TrustTicket is ERC721, Ownable {
 
     mapping(uint256 => Concert) public concerts;
     mapping(uint256 => TicketInfo) public tickets;
+    mapping(uint256 => bool) private deletedConcerts;
 
     event ConcertCreated(
         uint256 concertId,
@@ -51,6 +52,9 @@ contract TrustTicket is ERC721, Ownable {
         uint256 ticketId,
         address attendee
     );
+
+    event ConcertUpdated(uint256 concertId);
+    event ConcertDeleted(uint256 concertId);
 
     function createConcert(
         string memory _name,
@@ -90,6 +94,7 @@ contract TrustTicket is ERC721, Ownable {
         Concert storage concert = concerts[_concertId];
 
         require(concert.id != 0, "Concert not found");
+        require(!deletedConcerts[_concertId], "Concert has been deleted");
         require(concert.active, "Concert is not active");
         require(block.timestamp < concert.date, "Concert has ended");
         require(concert.ticketsSold < concert.totalTickets, "Tickets sold out");
@@ -167,7 +172,56 @@ contract TrustTicket is ERC721, Ownable {
         require(concert.id != 0, "Concert not found");
         require(msg.sender == concert.organizer, "Only organizer can update");
 
+        require(!deletedConcerts[_concertId], "Concert has been deleted");
         concert.active = _status;
+    }
+
+    function updateConcert(
+        uint256 _concertId,
+        string memory _name,
+        string memory _venue,
+        uint256 _date,
+        uint256 _price,
+        uint256 _totalTickets
+    ) public {
+        Concert storage concert = concerts[_concertId];
+
+        require(concert.id != 0, "Concert not found");
+        require(msg.sender == concert.organizer, "Only organizer can update");
+        require(!deletedConcerts[_concertId], "Concert has been deleted");
+        require(concert.ticketsSold == 0, "Cannot edit after ticket sales");
+        require(bytes(_name).length > 0, "Concert name required");
+        require(bytes(_venue).length > 0, "Venue required");
+        require(_date > block.timestamp, "Concert date must be in the future");
+        require(_price > 0, "Price must be greater than zero");
+        require(_totalTickets > 0, "Total tickets must be greater than zero");
+
+        concert.name = _name;
+        concert.venue = _venue;
+        concert.date = _date;
+        concert.price = _price;
+        concert.totalTickets = _totalTickets;
+
+        emit ConcertUpdated(_concertId);
+    }
+
+    function deleteConcert(uint256 _concertId) public {
+        Concert storage concert = concerts[_concertId];
+
+        require(concert.id != 0, "Concert not found");
+        require(msg.sender == concert.organizer, "Only organizer can delete");
+        require(!deletedConcerts[_concertId], "Concert has been deleted");
+        require(concert.ticketsSold == 0, "Cannot delete after ticket sales");
+
+        deletedConcerts[_concertId] = true;
+        concert.active = false;
+        concert.name = "";
+        concert.venue = "";
+        concert.date = 0;
+        concert.price = 0;
+        concert.totalTickets = 0;
+
+        emit ConcertDeleted(_concertId);
     }
 
     function getTotalConcerts()

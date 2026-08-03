@@ -35,7 +35,9 @@ window.TrustTicketContract = {
         "function ownerOf(uint256) view returns (address)",
         "function verifyTicket(uint256) view returns (bool)",
         "function checkIn(uint256)",
-        "function updateConcertStatus(uint256,bool)"
+        "function updateConcertStatus(uint256,bool)",
+        "function updateConcert(uint256,string,string,uint256,uint256,uint256)",
+        "function deleteConcert(uint256)"
     ],
 
     async readContract() {
@@ -181,6 +183,27 @@ window.TrustTicketContract = {
     async updateConcertStatus(concertId, active) {
         const contract = await this.writeContract();
         const tx = await contract.updateConcertStatus(concertId, active);
+        await tx.wait();
+        return tx;
+    },
+
+    async updateConcert(concertId, name, venue, date, price, totalTickets) {
+        const contract = await this.writeContract();
+        const tx = await contract.updateConcert(
+            concertId,
+            name,
+            venue,
+            date,
+            ethers.parseEther(String(price)),
+            totalTickets
+        );
+        await tx.wait();
+        return tx;
+    },
+
+    async deleteConcert(concertId) {
+        const contract = await this.writeContract();
+        const tx = await contract.deleteConcert(concertId);
         await tx.wait();
         return tx;
     }

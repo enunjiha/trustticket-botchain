@@ -61,6 +61,13 @@ html,body{max-width:100%;overflow-x:hidden}
   height: 288px !important;
   max-width: 100%;
 }
+
+.date-block .start-time {
+  display: block;
+  margin-top: 9px;
+  color: var(--muted);
+  font: 600 14px/1.2 Manrope, sans-serif;
+}
 @media(max-width:480px){
   .wallet-label{display:none}
   .wallet-btn{flex:0 0 38px;width:38px;height:38px;padding:0}

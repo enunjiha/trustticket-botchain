@@ -547,10 +547,11 @@ document.getElementById("qrImageInput").addEventListener("change", async (event)
 
 document.getElementById("concertForm").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const button = event.currentTarget.querySelector('button[type="submit"]');
+  const form = event.currentTarget;
+  const button = form.querySelector('button[type="submit"]');
   try {
     if (!account) await connectWallet();
-    const data = new FormData(event.currentTarget);
+    const data = new FormData(form);
     const eventDateTime = new Date(`${data.get("date")}T${data.get("time")}:00`);
     const timestamp = Math.floor(eventDateTime.getTime() / 1000);
     if (Number.isNaN(timestamp)) {
@@ -569,7 +570,7 @@ document.getElementById("concertForm").addEventListener("submit", async (event) 
       data.get("price"),
       Number(data.get("supply"))
     );
-    event.currentTarget.reset();
+    form.reset();
     await loadDashboard();
     document.getElementById("concerts").scrollIntoView({ behavior: "smooth" });
     showToast("Concert created on BOTChain.");

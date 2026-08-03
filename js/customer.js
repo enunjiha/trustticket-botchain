@@ -21,8 +21,12 @@ function dateParts(timestamp) {
         hour: "numeric",
         minute: "2-digit"
     }).format(date);
+    const time = new Intl.DateTimeFormat("en-MY", {
+        hour: "numeric",
+        minute: "2-digit"
+    }).format(date);
 
-    return { short: `${day} ${month}`, full: fullDate };
+    return { short: `${day} ${month}`, full: fullDate, time };
 }
 
 async function loadConcerts() {
@@ -44,6 +48,7 @@ async function loadConcerts() {
             return {
                 ...concert,
                 fullDate: date.full,
+                time: date.time,
                 eventTimestamp: concert.date,
                 date: date.short,
                 left: Math.max(0, concert.totalTickets - concert.ticketsSold),
@@ -120,6 +125,7 @@ function renderHome() {
             <div class="date-block">
                 <small>${c.date.split(" ")[1]}</small>
                 ${c.date.split(" ")[0]}
+                <span class="start-time">${c.time}</span>
             </div>
 
             <div>
@@ -184,6 +190,11 @@ function renderDetail() {
             <div class="fact">
                 <span>Date</span>
                 <strong>${c.date}</strong>
+            </div>
+
+            <div class="fact">
+                <span>Time</span>
+                <strong>${c.time}</strong>
             </div>
 
             <div class="fact">

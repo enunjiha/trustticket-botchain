@@ -153,11 +153,18 @@ async function loadDashboard() {
 
   concertGrid.innerHTML = "<p>Loading your concerts from BOTChain...</p>";
   const total = await TrustTicketContract.getTotalConcerts();
-  const allConcerts = await Promise.all(
+  const concertResults = await Promise.allSettled(
     Array.from({ length: total }, (_, index) =>
       TrustTicketContract.getConcert(index + 1)
     )
   );
+  const allConcerts = concertResults
+    .filter((result) => result.status === "fulfilled")
+    .map((result) => result.value);
+
+  concertResults
+    .filter((result) => result.status === "rejected")
+    .forEach((result) => console.warn("Skipping unavailable concert:", result.reason));
 
   events = allConcerts
     .filter((concert) => sameAddress(concert.organizer, account) && concert.name.trim())
@@ -285,14 +292,17 @@ function openEventModal(concert) {
     <div><span>Tickets sold</span><strong>${concert.ticketsSold} / ${concert.totalTickets}</strong></div>
     <div><span>Status</span><strong>${concert.status}</strong></div>`;
   statusButton.textContent = concert.active ? "Deactivate event" : "Activate event";
+  const hasStarted = concert.date <= Math.floor(Date.now() / 1000);
   editEventForm.hidden = true;
   editEventButton.hidden = false;
   deleteEventButton.hidden = false;
-  editEventButton.disabled = concert.ticketsSold > 0;
-  deleteEventButton.disabled = concert.ticketsSold > 0;
+  editEventButton.disabled = false;
+  deleteEventButton.disabled = false;
   const lockedMessage = concert.ticketsSold > 0 ? "Unavailable after ticket sales" : "";
-  editEventButton.title = lockedMessage;
+  editEventButton.title = hasStarted ? "Unavailable after the event has started" : "";
   deleteEventButton.title = lockedMessage;
+  editEventButton.textContent = hasStarted ? "Edit locked" : "Edit event";
+  deleteEventButton.textContent = concert.ticketsSold > 0 ? "Delete locked" : "Delete event";
   eventInsights.hidden = false;
   document.querySelector(".modal-actions").hidden = false;
   renderEventInsights(concert);
@@ -600,13 +610,19 @@ statusButton.addEventListener("click", async () => {
 });
 
 editEventButton.addEventListener("click", () => {
-  if (!activeEvent || activeEvent.ticketsSold > 0) return;
+  if (!activeEvent) return;
+  if (activeEvent.date <= Math.floor(Date.now() / 1000)) {
+    showToast("This event cannot be edited because it has already started.", true);
+    return;
+  }
   document.getElementById("editEventName").value = activeEvent.name;
   document.getElementById("editEventDate").value = dateInputValue(activeEvent.date);
   document.getElementById("editEventTime").value = timeInputValue(activeEvent.date);
   document.getElementById("editEventVenue").value = activeEvent.venue;
   document.getElementById("editEventPrice").value = activeEvent.price;
-  document.getElementById("editEventSupply").value = activeEvent.totalTickets;
+  const supplyInput = document.getElementById("editEventSupply");
+  supplyInput.min = String(Math.max(1, activeEvent.ticketsSold));
+  supplyInput.value = activeEvent.totalTickets;
   eventInsights.hidden = true;
   document.querySelector(".modal-actions").hidden = true;
   editEventForm.hidden = false;
@@ -627,6 +643,9 @@ editEventForm.addEventListener("submit", async (event) => {
     if (Number.isNaN(timestamp)) throw new Error("Enter a valid concert date and time.");
     if (timestamp <= Math.floor(Date.now() / 1000)) {
       throw new Error("Concert date and time must be in the future.");
+    }
+    if (Number(data.get("supply")) < activeEvent.ticketsSold) {
+      throw new Error(`Ticket supply cannot be lower than ${activeEvent.ticketsSold} tickets already sold.`);
     }
 
     button.disabled = true;
@@ -652,7 +671,11 @@ editEventForm.addEventListener("submit", async (event) => {
 });
 
 deleteEventButton.addEventListener("click", async () => {
-  if (!activeEvent || activeEvent.ticketsSold > 0) return;
+  if (!activeEvent) return;
+  if (activeEvent.ticketsSold > 0) {
+    showToast("This event cannot be deleted because tickets have already been sold.", true);
+    return;
+  }
   const eventId = activeEvent.id;
   if (!window.confirm(`Delete ${activeEvent.name}? This cannot be undone.`)) return;
   try {

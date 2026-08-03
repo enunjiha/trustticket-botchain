@@ -192,12 +192,13 @@ contract TrustTicket is ERC721, Ownable {
         require(concert.id != 0, "Concert not found");
         require(msg.sender == concert.organizer, "Only organizer can update");
         require(!deletedConcerts[_concertId], "Concert has been deleted");
-        require(concert.ticketsSold == 0, "Cannot edit after ticket sales");
+        require(block.timestamp < concert.date, "Cannot edit after event has started");
         require(bytes(_name).length > 0, "Concert name required");
         require(bytes(_venue).length > 0, "Venue required");
         require(_date > block.timestamp, "Concert date must be in the future");
         require(_price > 0, "Price must be greater than zero");
         require(_totalTickets > 0, "Total tickets must be greater than zero");
+        require(_totalTickets >= concert.ticketsSold, "Supply cannot be below tickets sold");
 
         concert.name = _name;
         concert.venue = _venue;

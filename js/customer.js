@@ -35,11 +35,18 @@ async function loadConcerts() {
     }
 
     const total = await TrustTicketContract.getTotalConcerts();
-    const records = await Promise.all(
+    const results = await Promise.allSettled(
         Array.from({ length: total }, (_, index) =>
             TrustTicketContract.getConcert(index + 1)
         )
     );
+    const records = results
+        .filter(result => result.status === "fulfilled")
+        .map(result => result.value);
+
+    results
+        .filter(result => result.status === "rejected")
+        .forEach(result => console.warn("Skipping unavailable concert:", result.reason));
 
     CONCERTS = records
         .filter(concert => concert.active && concert.date * 1000 > Date.now())

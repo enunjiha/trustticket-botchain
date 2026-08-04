@@ -24,6 +24,7 @@ let tickets = [];
 let activeEvent = null;
 let activeAttendees = [];
 let qrScanner = null;
+const scannedDisplayIds = new Map();
 
 const organizerSectionLinks = [...document.querySelectorAll('.sidebar nav a[href^="#"]')]
   .filter((link) => link.getAttribute("href") !== "#top");
@@ -78,6 +79,40 @@ function errorMessage(error) {
 
 function sameAddress(left, right) {
   return String(left).toLowerCase() === String(right).toLowerCase();
+}
+
+function normalizeConcertName(name) {
+  return String(name).trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+async function loadAllReadableConcerts() {
+  const total = await TrustTicketContract.getTotalConcerts();
+  const results = await Promise.allSettled(
+    Array.from({ length: total }, (_, index) =>
+      TrustTicketContract.getConcert(index + 1)
+    )
+  );
+
+  results
+    .filter((result) => result.status === "rejected")
+    .forEach((result) => console.warn("Skipping unavailable concert:", result.reason));
+
+  return results
+    .filter((result) => result.status === "fulfilled")
+    .map((result) => result.value)
+    .filter((concert) => concert.name.trim());
+}
+
+async function requireUniqueConcertName(name, excludedConcertId = null) {
+  const normalizedName = normalizeConcertName(name);
+  const concerts = await loadAllReadableConcerts();
+  const duplicate = concerts.find((concert) =>
+    concert.id !== excludedConcertId && normalizeConcertName(concert.name) === normalizedName
+  );
+
+  if (duplicate) {
+    throw new Error(`A concert named "${duplicate.name}" already exists. Use a distinct name, such as adding a year or version.`);
+  }
 }
 
 function shortWallet(address) {
@@ -182,19 +217,7 @@ async function loadDashboard() {
   if (!account) return;
 
   concertGrid.innerHTML = "<p>Loading your concerts from BOTChain...</p>";
-  const total = await TrustTicketContract.getTotalConcerts();
-  const concertResults = await Promise.allSettled(
-    Array.from({ length: total }, (_, index) =>
-      TrustTicketContract.getConcert(index + 1)
-    )
-  );
-  const allConcerts = concertResults
-    .filter((result) => result.status === "fulfilled")
-    .map((result) => result.value);
-
-  concertResults
-    .filter((result) => result.status === "rejected")
-    .forEach((result) => console.warn("Skipping unavailable concert:", result.reason));
+  const allConcerts = await loadAllReadableConcerts();
 
   events = allConcerts
     .filter((concert) => sameAddress(concert.organizer, account) && concert.name.trim())
@@ -394,6 +417,9 @@ function parsedTicketId(rawValue) {
     displayTicketId(ticket).toLowerCase() === value.toLowerCase()
   );
   if (displayMatch) return String(displayMatch.ticketId);
+  if (scannedDisplayIds.has(value.toLowerCase())) {
+    return scannedDisplayIds.get(value.toLowerCase());
+  }
   try {
     const payload = JSON.parse(value);
     return payload && typeof payload === "object"
@@ -402,6 +428,33 @@ function parsedTicketId(rawValue) {
   } catch {
     return value.replace(/^#/, "");
   }
+}
+
+async function scannedTicketDisplayValue(decodedText) {
+  try {
+    const payload = JSON.parse(decodedText);
+    const ticketId = String(payload?.ticketId || "").replace(/^#/, "");
+    const displayId = String(payload?.displayId || "").trim();
+    if (/^\d+$/.test(ticketId) && displayId) {
+      scannedDisplayIds.set(displayId.toLowerCase(), ticketId);
+      return displayId;
+    }
+  } catch {
+    // Older QR codes use the BOT Chain history fallback below.
+  }
+
+  const ticketId = parsedTicketId(decodedText);
+  if (!ticketId || !/^\d+$/.test(ticketId)) return decodedText;
+
+  let matchedTicket = tickets.find((ticket) => ticket.ticketId === Number(ticketId));
+  if (!matchedTicket) {
+    const ticket = await TrustTicketContract.getTicket(ticketId);
+    const concertSerial = await TrustTicketContract.getTicketSerial(ticketId, ticket.concertId);
+    matchedTicket = { ...ticket, concertSerial };
+    tickets.push(matchedTicket);
+  }
+
+  return displayTicketId(matchedTicket);
 }
 
 const CHECK_IN_OPENING_LEAD_SECONDS = 60 * 60;
@@ -419,13 +472,25 @@ async function verifyTicket() {
   verifyResult.replaceChildren();
   if (!ticketId || !/^\d+$/.test(ticketId)) {
     verifyResult.className = "verify-result used";
-    verifyResult.textContent = "ENTER A VALID TICKET ID, FOR EXAMPLE CORTIS01";
+    verifyResult.textContent = "ENTER A VALID DISPLAY ID, FOR EXAMPLE MAMAMOO-COMEBACK-2026-T01, OR A NUMERIC TICKET ID";
     return;
   }
 
   try {
     const ticket = await TrustTicketContract.getTicket(ticketId);
     const concert = await TrustTicketContract.getConcert(ticket.concertId);
+    let knownTicket = tickets.find((item) => item.ticketId === Number(ticketId));
+    if (!knownTicket) {
+      const hasScannedDisplayId = [...scannedDisplayIds.values()]
+        .some((mappedTicketId) => mappedTicketId === String(ticketId));
+      if (!hasScannedDisplayId) {
+        const concertSerial = await TrustTicketContract.getTicketSerial(ticketId, ticket.concertId);
+        knownTicket = { ...ticket, concertSerial };
+        tickets.push(knownTicket);
+      }
+    }
+    const publicId = knownTicket ? displayTicketId(knownTicket, concert) : ticketInput.value;
+    ticketInput.value = publicId;
     const belongsToOrganizer = account && sameAddress(concert.organizer, account);
     const valid = await TrustTicketContract.verifyTicket(ticketId);
 
@@ -436,8 +501,7 @@ async function verifyTicket() {
     }
     if (!valid || ticket.used) {
       verifyResult.className = "verify-result used";
-      const knownTicket = tickets.find((item) => item.ticketId === Number(ticketId));
-      verifyResult.textContent = `USED · TICKET ${knownTicket ? displayTicketId(knownTicket, concert) : `#${ticketId}`}`;
+      verifyResult.textContent = `USED · TICKET ${publicId}`;
       return;
     }
     const checkInStatus = checkInWindowStatus(concert);
@@ -453,8 +517,6 @@ async function verifyTicket() {
     }
 
     verifyResult.className = "verify-result valid";
-    const knownTicket = tickets.find((item) => item.ticketId === Number(ticketId));
-    const publicId = knownTicket ? displayTicketId(knownTicket, concert) : `#${ticketId}`;
     verifyResult.innerHTML = `VALID · ${escapeHtml(publicId)} · ${escapeHtml(concert.name)} · OWNER ${shortWallet(ticket.owner)} `;
     const button = document.createElement("button");
     button.type = "button";
@@ -537,7 +599,7 @@ document.getElementById("startScanner").addEventListener("click", async () => {
     };
     const onScanSuccess = async (decodedText) => {
       scanStatus.textContent = "QR detected. Verifying ticket...";
-      ticketInput.value = parsedTicketId(decodedText) || decodedText;
+      ticketInput.value = await scannedTicketDisplayValue(decodedText);
       await stopCamera();
       await verifyTicket();
     };
@@ -618,9 +680,8 @@ document.getElementById("qrImageInput").addEventListener("change", async (event)
   try {
     await stopCamera();
     const decodedText = await decodeQrImage(file);
-    ticketInput.value = parsedTicketId(decodedText) || decodedText;
-    const matchedTicket = tickets.find((ticket) => ticket.ticketId === Number(ticketInput.value));
-    fileStatus.textContent = `QR detected: ticket ${matchedTicket ? displayTicketId(matchedTicket) : `#${ticketInput.value}`}`;
+    ticketInput.value = await scannedTicketDisplayValue(decodedText);
+    fileStatus.textContent = `QR detected: ticket ${ticketInput.value}`;
     await verifyTicket();
     showToast("QR image detected.");
   } catch (error) {
@@ -647,10 +708,14 @@ document.getElementById("concertForm").addEventListener("submit", async (event) 
       throw new Error("Concert date and time must be in the future.");
     }
 
+    const concertName = data.get("name").trim();
     button.disabled = true;
+    showToast("Checking concert name availability...");
+    await requireUniqueConcertName(concertName);
+
     showToast("Confirm concert creation in MetaMask.");
     await TrustTicketContract.createConcert(
-      data.get("name").trim(),
+      concertName,
       data.get("venue").trim(),
       timestamp,
       data.get("price"),
@@ -724,12 +789,16 @@ editEventForm.addEventListener("submit", async (event) => {
       throw new Error(`Ticket supply cannot be lower than ${activeEvent.ticketsSold} tickets already sold.`);
     }
 
+    const concertName = data.get("name").trim();
     button.disabled = true;
+    showToast("Checking concert name availability...");
+    await requireUniqueConcertName(concertName, activeEvent.id);
+
     showToast("Confirm the event update in MetaMask.");
     const eventId = activeEvent.id;
     await TrustTicketContract.updateConcert(
       eventId,
-      data.get("name").trim(),
+      concertName,
       data.get("venue").trim(),
       timestamp,
       data.get("price"),

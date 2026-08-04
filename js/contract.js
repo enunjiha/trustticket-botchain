@@ -120,12 +120,15 @@ window.TrustTicketContract = {
     },
 
     concertCode(name) {
-        const firstWord = String(name || "TICKET").trim().split(/\s+/)[0];
-        return firstWord.replace(/[^a-z0-9]/gi, "").toUpperCase() || "TICKET";
+        return String(name || "TICKET")
+            .trim()
+            .replace(/[^a-z0-9]+/gi, "-")
+            .replace(/^-+|-+$/g, "")
+            .toUpperCase() || "TICKET";
     },
 
     ticketDisplayId(concertName, concertSerial) {
-        return `${this.concertCode(concertName)}${String(concertSerial).padStart(2, "0")}`;
+        return `${this.concertCode(concertName)}-T${String(concertSerial).padStart(2, "0")}`;
     },
 
     async createConcert(name, venue, date, price, totalTickets) {
@@ -180,6 +183,29 @@ window.TrustTicketContract = {
                 concertSerial
             };
         }));
+    },
+
+    async getTicketSerial(ticketId, concertId) {
+        const contract = await this.readContract();
+        const latestBlock = await contract.runner.provider.getBlockNumber();
+        let concertSerial = 0;
+
+        for (let fromBlock = this.deploymentBlock; fromBlock <= latestBlock; fromBlock += 5000) {
+            const toBlock = Math.min(fromBlock + 4999, latestBlock);
+            const logs = await contract.queryFilter(
+                contract.filters.TicketPurchased(),
+                fromBlock,
+                toBlock
+            );
+
+            for (const log of logs) {
+                if (Number(log.args.concertId) !== Number(concertId)) continue;
+                concertSerial += 1;
+                if (Number(log.args.ticketId) === Number(ticketId)) return concertSerial;
+            }
+        }
+
+        throw new Error(`Ticket ${ticketId} purchase record was not found.`);
     },
 
     async verifyTicket(ticketId) {

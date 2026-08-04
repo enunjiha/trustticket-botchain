@@ -28,8 +28,13 @@ window.TrustQR = {
     const box = document.querySelector("#qr-code");
     box.innerHTML = "";
 
+    const qrPayload = JSON.stringify({
+      ticketId: ticket.ticketId,
+      displayId: ticket.displayId
+    });
+
     new QRCode(box, {
-      text: `trustticket:${ticket.ticketId}`,
+      text: qrPayload,
       width: 288,
       height: 288,
       colorDark: "#070908",

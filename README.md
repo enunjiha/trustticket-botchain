@@ -112,7 +112,7 @@ Wait for the MetaMask transaction to be confirmed before expecting the new infor
 The deployed TrustTicket website is available at:
 
 ```
-Live Website: https://trustticket-botchain
+Live Website: https://www.trustticket.website
 ```
 
 The customer portal is the main page. Organizers can open the **Organizer Portal** from its navigation.

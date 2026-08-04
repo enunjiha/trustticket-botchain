@@ -110,11 +110,22 @@ window.TrustTicketContract = {
             throw new Error("Ticket purchase succeeded, but its ticket ID was not found.");
         }
 
+        const updatedConcert = await this.getConcert(id);
         return {
             tx,
             receipt,
-            ticketId: Number(purchased.args.ticketId)
+            ticketId: Number(purchased.args.ticketId),
+            displayId: this.ticketDisplayId(updatedConcert.name, updatedConcert.ticketsSold)
         };
+    },
+
+    concertCode(name) {
+        const firstWord = String(name || "TICKET").trim().split(/\s+/)[0];
+        return firstWord.replace(/[^a-z0-9]/gi, "").toUpperCase() || "TICKET";
+    },
+
+    ticketDisplayId(concertName, concertSerial) {
+        return `${this.concertCode(concertName)}${String(concertSerial).padStart(2, "0")}`;
     },
 
     async createConcert(name, venue, date, price, totalTickets) {
@@ -158,10 +169,17 @@ window.TrustTicketContract = {
             ));
         }
 
-        return Promise.all(logs.map(async (log) => ({
-            ...await this.getTicket(log.args.ticketId),
-            buyer: log.args.buyer
-        })));
+        const serials = new Map();
+        return Promise.all(logs.map(async (log) => {
+            const concertId = Number(log.args.concertId);
+            const concertSerial = (serials.get(concertId) || 0) + 1;
+            serials.set(concertId, concertSerial);
+            return {
+                ...await this.getTicket(log.args.ticketId),
+                buyer: log.args.buyer,
+                concertSerial
+            };
+        }));
     },
 
     async verifyTicket(ticketId) {

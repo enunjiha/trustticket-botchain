@@ -269,12 +269,19 @@ function attendeesFor(concert) {
   return tickets.filter((ticket) => ticket.concertId === concert.id);
 }
 
+function displayTicketId(ticket, concert = events.find((event) => event.id === ticket.concertId)) {
+  return concert
+    ? TrustTicketContract.ticketDisplayId(concert.name, ticket.concertSerial)
+    : `#${ticket.ticketId}`;
+}
+
 function renderAttendees(query = "") {
   const term = query.trim().toLowerCase();
   const checkInStatus = activeEvent ? checkInWindowStatus(activeEvent) : "VALID";
   const checkInIsOpen = checkInStatus === "VALID";
   const filtered = activeAttendees.filter((ticket) =>
     String(ticket.ticketId).includes(term) ||
+    displayTicketId(ticket, activeEvent).toLowerCase().includes(term) ||
     ticket.owner.toLowerCase().includes(term)
   );
   attendeeList.replaceChildren();
@@ -291,7 +298,7 @@ function renderAttendees(query = "") {
     const row = document.createElement("div");
     row.className = "attendee-row";
     row.innerHTML = `
-      <div><span>Ticket</span><strong>#${ticket.ticketId}</strong></div>
+      <div><span>Ticket</span><strong>${escapeHtml(displayTicketId(ticket, activeEvent))}</strong></div>
       <div class="attendee-owner"><span>Wallet</span><strong title="${ticket.owner}">${shortWallet(ticket.owner)}</strong></div>
       <button class="checkin-small${ticket.used ? " used" : ""}" type="button" ${ticket.used || !checkInIsOpen ? "disabled" : ""}
         ${ticket.used ? "Checked in" : checkInIsOpen ? "Check in" : checkInStatus === "EXPIRED" ? "Window closed" : "Opens 1 hour before"}
@@ -364,7 +371,8 @@ async function checkInTicket(ticketId) {
 
     showToast("Confirm the check-in transaction in MetaMask.");
     await TrustTicketContract.checkIn(ticketId);
-    showToast(`Ticket #${ticketId} checked in on BOTChain.`);
+    const knownTicket = tickets.find((item) => item.ticketId === Number(ticketId));
+    showToast(`Ticket ${knownTicket ? displayTicketId(knownTicket, concert) : `#${ticketId}`} checked in on BOTChain.`);
     await loadDashboard();
     if (activeEvent) {
       const refreshed = events.find((event) => event.id === activeEvent.id);
@@ -382,6 +390,10 @@ function parsedTicketId(rawValue) {
   if (/^\d+$/.test(value)) return value;
   const compactMatch = value.match(/^trustticket:(\d+)$/i);
   if (compactMatch) return compactMatch[1];
+  const displayMatch = tickets.find((ticket) =>
+    displayTicketId(ticket).toLowerCase() === value.toLowerCase()
+  );
+  if (displayMatch) return String(displayMatch.ticketId);
   try {
     const payload = JSON.parse(value);
     return payload && typeof payload === "object"
@@ -407,7 +419,7 @@ async function verifyTicket() {
   verifyResult.replaceChildren();
   if (!ticketId || !/^\d+$/.test(ticketId)) {
     verifyResult.className = "verify-result used";
-    verifyResult.textContent = "ENTER A VALID NUMERIC TICKET ID";
+    verifyResult.textContent = "ENTER A VALID TICKET ID, FOR EXAMPLE CORTIS01";
     return;
   }
 
@@ -424,7 +436,8 @@ async function verifyTicket() {
     }
     if (!valid || ticket.used) {
       verifyResult.className = "verify-result used";
-      verifyResult.textContent = `USED · TICKET #${ticketId}`;
+      const knownTicket = tickets.find((item) => item.ticketId === Number(ticketId));
+      verifyResult.textContent = `USED · TICKET ${knownTicket ? displayTicketId(knownTicket, concert) : `#${ticketId}`}`;
       return;
     }
     const checkInStatus = checkInWindowStatus(concert);
@@ -440,7 +453,9 @@ async function verifyTicket() {
     }
 
     verifyResult.className = "verify-result valid";
-    verifyResult.innerHTML = `VALID · ${escapeHtml(concert.name)} · OWNER ${shortWallet(ticket.owner)} `;
+    const knownTicket = tickets.find((item) => item.ticketId === Number(ticketId));
+    const publicId = knownTicket ? displayTicketId(knownTicket, concert) : `#${ticketId}`;
+    verifyResult.innerHTML = `VALID · ${escapeHtml(publicId)} · ${escapeHtml(concert.name)} · OWNER ${shortWallet(ticket.owner)} `;
     const button = document.createElement("button");
     button.type = "button";
     button.className = "checkin-small";
@@ -604,7 +619,8 @@ document.getElementById("qrImageInput").addEventListener("change", async (event)
     await stopCamera();
     const decodedText = await decodeQrImage(file);
     ticketInput.value = parsedTicketId(decodedText) || decodedText;
-    fileStatus.textContent = `QR detected: ticket #${ticketInput.value}`;
+    const matchedTicket = tickets.find((ticket) => ticket.ticketId === Number(ticketInput.value));
+    fileStatus.textContent = `QR detected: ticket ${matchedTicket ? displayTicketId(matchedTicket) : `#${ticketInput.value}`}`;
     await verifyTicket();
     showToast("QR image detected.");
   } catch (error) {

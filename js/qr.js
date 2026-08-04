@@ -39,7 +39,7 @@ window.TrustQR = {
 
     document.querySelector("#qr-title").textContent = ticket.concert;
     document.querySelector("#qr-meta").textContent =
-      `Ticket #${ticket.ticketId} / Present this code at entry`;
+      `Ticket ${ticket.displayId} / Present this code at entry`;
     modal.showModal();
   }
 };

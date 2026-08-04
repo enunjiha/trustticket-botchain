@@ -258,7 +258,7 @@ async function buyTicket(c) {
         if (!owner) throw new Error("Wallet connection is required.");
 
         const purchase = await TrustTicketContract.buyTicket(c.id);
-        showToast(`Ticket #${purchase.ticketId} confirmed on BOTChain.`);
+        showToast(`Ticket ${purchase.displayId} confirmed on BOTChain.`);
 
         setTimeout(() => {
             location.hash = "#tickets";
@@ -303,7 +303,7 @@ function ticketMarkup(ticket, index) {
 
             <div class="ticket-stub">
                 <span>TRUST<br>TICKET</span>
-                <strong>#${ticket.ticketId}</strong>
+                <strong>${escapeHtml(ticket.displayId)}</strong>
             </div>
 
             <div class="ticket-body">
@@ -459,6 +459,7 @@ async function renderTickets() {
         return {
             ...ticket,
             concert: concert.name,
+            displayId: TrustTicketContract.ticketDisplayId(concert.name, ticket.concertSerial),
             date: formatted.full,
             eventTimestamp: concert.date,
             venue: concert.venue

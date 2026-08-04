@@ -10,6 +10,13 @@ function escapeHtml(value) {
     })[character]);
 }
 
+function customerErrorMessage(error) {
+    const message = error?.shortMessage || error?.reason || error?.message || "Transaction failed.";
+    return /concert has ended/i.test(message)
+        ? "The concert has already started. Ticket sales are closed."
+        : message;
+}
+
 function dateParts(timestamp) {
     const date = new Date(timestamp * 1000);
     const day = new Intl.DateTimeFormat("en-MY", { day: "2-digit" }).format(date);
@@ -267,7 +274,7 @@ async function buyTicket(c) {
     } catch (error) {
 
         showToast(
-            error.shortMessage || error.message,
+            customerErrorMessage(error),
             true
         );
 

@@ -3,23 +3,23 @@ const walletStatus = document.querySelector("#wallet-status");
 
 async function ensureBotChain() {
   const chainId = await window.ethereum.request({ method: "eth_chainId" });
-  if (chainId === "0x3c8") return;
+  if (chainId === "0x2a5") return;
 
   try {
     await window.ethereum.request({
       method: "wallet_switchEthereumChain",
-      params: [{ chainId: "0x3c8" }]
+      params: [{ chainId: "0x2a5" }]
     });
   } catch (error) {
     if (error.code !== 4902) throw error;
     await window.ethereum.request({
       method: "wallet_addEthereumChain",
       params: [{
-        chainId: "0x3c8",
-        chainName: "BOT Chain Testnet",
+        chainId: "0x2a5",
+        chainName: "BOT Chain Mainnet",
         nativeCurrency: { name: "BOT", symbol: "BOT", decimals: 18 },
-        rpcUrls: ["https://rpc.bohr.life"],
-        blockExplorerUrls: ["https://scan.bohr.life/"]
+        rpcUrls: ["https://rpc.botchain.ai"],
+        blockExplorerUrls: ["https://scan.botchain.ai/"]
       }]
     });
   }

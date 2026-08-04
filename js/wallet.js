@@ -45,10 +45,10 @@ window.TrustWallet = {
         method: "wallet_addEthereumChain",
         params: [{
           chainId: expected,
-          chainName: "BOT Chain Testnet",
+          chainName: "BOT Chain Mainnet",
           nativeCurrency: { name: "BOT", symbol: "BOT", decimals: 18 },
           rpcUrls: [TrustTicketContract.rpcUrl],
-          blockExplorerUrls: ["https://scan.bohr.life/"]
+          blockExplorerUrls: ["https://scan.botchain.ai/"]
         }]
       });
     }

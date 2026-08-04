@@ -112,7 +112,7 @@ Wait for the MetaMask transaction to be confirmed before expecting the new infor
 The deployed TrustTicket website is available at:
 
 ```
-Live Website: https://REPLACE_WITH_LIVE_DOMAIN
+Live Website: https://trustticket-botchain
 ```
 
 The customer portal is the main page. Organizers can open the **Organizer Portal** from its navigation.
@@ -133,6 +133,8 @@ TrustTicket uses the deployed mainnet contract at:
 
 ```
 Mainnet Contract Address:
+0x1395b46309db109209aa4A711E94cd0f9444198f
+Deployment Block: 18475946
 ```
 
 BOT on mainnet has real monetary value. Concert creation, ticket purchases, event status changes, and ticket check-in require mainnet gas fees.

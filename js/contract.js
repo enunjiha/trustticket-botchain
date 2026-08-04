@@ -1,8 +1,8 @@
 window.TrustTicketContract = {
-    address: "0xC1D0A74e2FC13814d8C0cbA8c1D523b9a305BD77",
-    rpcUrl: "https://rpc.bohr.life",
-    chainId: 968,
-    deploymentBlock: 18005127,
+    address: "0x1395b46309db109209aa4A711E94cd0f9444198f",
+    rpcUrl: "https://rpc.botchain.ai",
+    chainId: 677,
+    deploymentBlock: 18475946,
 
     configured() {
         return !!this.address;
